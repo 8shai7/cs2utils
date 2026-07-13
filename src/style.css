@@ -678,6 +678,43 @@ input[type='color'] {
   cursor: pointer;
 }
 
+.rgb-control {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.rgb-control input[type='color'] {
+  flex: 1;
+}
+
+.rgb-swatch {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: #32fa32;
+}
+
+.rgb-slider {
+  margin-bottom: 0.5rem;
+}
+
+#ed-rgb-val {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--accent-strong);
+}
+
+#ed-r::-webkit-slider-thumb { background: #ff5c5c; }
+#ed-g::-webkit-slider-thumb { background: #4cd47a; }
+#ed-b::-webkit-slider-thumb { background: #5c8cff; }
+#ed-r::-moz-range-thumb { background: #ff5c5c; }
+#ed-g::-moz-range-thumb { background: #4cd47a; }
+#ed-b::-moz-range-thumb { background: #5c8cff; }
+
 .editor-toggles {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

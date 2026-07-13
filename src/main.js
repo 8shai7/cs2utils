@@ -166,10 +166,16 @@ app.innerHTML = `
               </label>
             </div>
 
-            <label class="field" id="ed-custom-color-field">
-              <span>Custom color</span>
-              <input id="ed-custom-color" type="color" value="#32fa32" />
-            </label>
+            <div class="field hidden" id="ed-custom-color-field">
+              <span>Custom RGB <output id="ed-rgb-val"></output></span>
+              <div class="rgb-control">
+                <span class="rgb-swatch" id="ed-color-swatch"></span>
+                <input id="ed-custom-color" type="color" value="#32fa32" aria-label="Color picker" />
+              </div>
+              <label class="range-field rgb-slider"><span>R <output id="ed-r-val"></output></span><input id="ed-r" type="range" min="0" max="255" step="1" /></label>
+              <label class="range-field rgb-slider"><span>G <output id="ed-g-val"></output></span><input id="ed-g" type="range" min="0" max="255" step="1" /></label>
+              <label class="range-field rgb-slider"><span>B <output id="ed-b-val"></output></span><input id="ed-b" type="range" min="0" max="255" step="1" /></label>
+            </div>
 
             <label class="field range-field">
               <span>Size <output id="ed-length-val"></output></span>
@@ -758,6 +764,14 @@ const edStyle = /** @type {HTMLSelectElement} */ (document.querySelector('#ed-st
 const edColor = /** @type {HTMLSelectElement} */ (document.querySelector('#ed-color'));
 const edCustomColor = /** @type {HTMLInputElement} */ (document.querySelector('#ed-custom-color'));
 const edCustomColorField = document.querySelector('#ed-custom-color-field');
+const edR = /** @type {HTMLInputElement} */ (document.querySelector('#ed-r'));
+const edG = /** @type {HTMLInputElement} */ (document.querySelector('#ed-g'));
+const edB = /** @type {HTMLInputElement} */ (document.querySelector('#ed-b'));
+const edRVal = document.querySelector('#ed-r-val');
+const edGVal = document.querySelector('#ed-g-val');
+const edBVal = document.querySelector('#ed-b-val');
+const edRgbVal = document.querySelector('#ed-rgb-val');
+const edColorSwatch = /** @type {HTMLElement} */ (document.querySelector('#ed-color-swatch'));
 const edLength = /** @type {HTMLInputElement} */ (document.querySelector('#ed-length'));
 const edThickness = /** @type {HTMLInputElement} */ (document.querySelector('#ed-thickness'));
 const edGap = /** @type {HTMLInputElement} */ (document.querySelector('#ed-gap'));
@@ -788,11 +802,25 @@ function hexToRgb(hex) {
   return { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) };
 }
 
+/** Reflect the editor's current color/RGB state onto all color controls. */
+function syncColorControls() {
+  const hex = rgbToHex(editor.red, editor.green, editor.blue);
+  edColor.value = String(editor.color);
+  edCustomColor.value = hex;
+  edR.value = String(editor.red);
+  edG.value = String(editor.green);
+  edB.value = String(editor.blue);
+  if (edRVal) edRVal.textContent = String(editor.red);
+  if (edGVal) edGVal.textContent = String(editor.green);
+  if (edBVal) edBVal.textContent = String(editor.blue);
+  if (edRgbVal) edRgbVal.textContent = `${editor.red}, ${editor.green}, ${editor.blue}`;
+  if (edColorSwatch) edColorSwatch.style.background = hex;
+  edCustomColorField?.classList.toggle('hidden', editor.color !== 5);
+}
+
 /** Push the current editor state onto every control (used on init / reset). */
 function applyStateToControls() {
   edStyle.value = String(editor.style);
-  edColor.value = String(editor.color);
-  edCustomColor.value = rgbToHex(editor.red, editor.green, editor.blue);
   edLength.value = String(editor.length);
   edThickness.value = String(editor.thickness);
   edGap.value = String(editor.gap);
@@ -802,6 +830,7 @@ function applyStateToControls() {
   edTStyle.checked = editor.tStyleEnabled;
   edOutlineOn.checked = editor.outlineEnabled;
   edAlphaOn.checked = editor.alphaEnabled;
+  syncColorControls();
 }
 
 /** Update the editor's own outputs (badges, code, commands) without touching the shared preview. */
@@ -812,7 +841,6 @@ function renderEditorOutputs() {
   edOutlineVal.textContent = String(editor.outline);
   edAlphaVal.textContent = String(editor.alpha);
 
-  edCustomColorField?.classList.toggle('hidden', editor.color !== 5);
   edOutline.disabled = !editor.outlineEnabled;
   edAlpha.disabled = !editor.alphaEnabled;
 
@@ -830,7 +858,7 @@ function renderEditor() {
   renderEditorOutputs();
 }
 
-/** Read every control into the editor state, then re-render. */
+/** Read the non-color controls into the editor state, then re-render. */
 function readEditorControls() {
   editor.style = Number(edStyle.value);
   editor.length = Number(edLength.value);
@@ -842,31 +870,52 @@ function readEditorControls() {
   editor.tStyleEnabled = edTStyle.checked;
   editor.outlineEnabled = edOutlineOn.checked;
   editor.alphaEnabled = edAlphaOn.checked;
-  editor.color = Number(edColor.value);
+  renderEditor();
+}
 
-  if (editor.color === 5) {
-    const { r, g, b } = hexToRgb(edCustomColor.value);
-    editor.red = r;
-    editor.green = g;
-    editor.blue = b;
-    edCustomColor.value = rgbToHex(r, g, b);
-  } else {
+/** Color preset dropdown: presets set fixed RGB; "Custom" reveals full RGB control. */
+function onColorSelect() {
+  editor.color = Number(edColor.value);
+  if (editor.color !== 5) {
     const [r, g, b] = EDITOR_PRESET_COLORS[editor.color] ?? EDITOR_PRESET_COLORS[1];
     editor.red = r;
     editor.green = g;
     editor.blue = b;
-    edCustomColor.value = rgbToHex(r, g, b);
   }
-
+  syncColorControls();
   renderEditor();
 }
 
-[edStyle, edColor, edCustomColor, edLength, edThickness, edGap, edOutline, edAlpha, edDot, edTStyle, edOutlineOn, edAlphaOn].forEach(
-  (el) => {
-    el.addEventListener('input', readEditorControls);
-    el.addEventListener('change', readEditorControls);
-  }
-);
+/** Any RGB slider changed → full custom color. */
+function onRgbSlider() {
+  editor.color = 5;
+  editor.red = Number(edR.value);
+  editor.green = Number(edG.value);
+  editor.blue = Number(edB.value);
+  syncColorControls();
+  renderEditor();
+}
+
+/** Native color picker changed → full custom color. */
+function onColorPicker() {
+  editor.color = 5;
+  const { r, g, b } = hexToRgb(edCustomColor.value);
+  editor.red = r;
+  editor.green = g;
+  editor.blue = b;
+  syncColorControls();
+  renderEditor();
+}
+
+[edStyle, edLength, edThickness, edGap, edOutline, edAlpha, edDot, edTStyle, edOutlineOn, edAlphaOn].forEach((el) => {
+  el.addEventListener('input', readEditorControls);
+  el.addEventListener('change', readEditorControls);
+});
+
+edColor.addEventListener('change', onColorSelect);
+edCustomColor.addEventListener('input', onColorPicker);
+edCustomColor.addEventListener('change', onColorPicker);
+[edR, edG, edB].forEach((el) => el.addEventListener('input', onRgbSlider));
 
 document.querySelector('#ed-copy-code')?.addEventListener('click', () => {
   copyText(crosshairStatus, edSharecode.value, 'share code');
