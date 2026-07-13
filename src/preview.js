@@ -47,8 +47,10 @@ function drawArm(ctx, cx, cy, length, thickness, color, alpha) {
 /**
  * @param {HTMLCanvasElement} canvas
  * @param {Crosshair | null} crosshair
+ * @param {number} [scale] screen pixels per crosshair unit (height / 1080). At
+ *   1920x1080 this is 1, i.e. cl_crosshairsize/thickness map ~1:1 to pixels.
  */
-export function renderCrosshairPreview(canvas, crosshair) {
+export function renderCrosshairPreview(canvas, crosshair, scale = 1) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
@@ -91,66 +93,53 @@ export function renderCrosshairPreview(canvas, crosshair) {
 
   const color = crosshairColor(crosshair);
   const alpha = crosshairAlpha(crosshair);
-  const scale = 6;
-  const gap = Math.max(0, crosshair.gap * scale);
-  const length = Math.max(0.5, crosshair.length * scale);
-  const thickness = Math.max(1, crosshair.thickness * scale);
-  const outline = crosshair.outlineEnabled ? Math.max(1, crosshair.outline * scale) : 0;
 
-  const arms = [
-    { dx: 0, dy: -1, hide: crosshair.tStyleEnabled },
-    { dx: 0, dy: 1, hide: false },
-    { dx: -1, dy: 0, hide: false },
-    { dx: 1, dy: 0, hide: false },
-  ];
+  // Real in-game pixel sizes: at 1080p, 1 unit ≈ 1 px and thickness 1 = 1 px.
+  // The game rounds to whole pixels and scales with vertical resolution.
+  const length = Math.max(0, Math.round(crosshair.length * scale));
+  const thickness = Math.max(1, Math.round(crosshair.thickness * scale));
+  const gap = Math.round(crosshair.gap * scale);
+  const outline = crosshair.outlineEnabled ? Math.max(1, Math.round(crosshair.outline * scale)) : 0;
 
-  const drawLine = (x1, y1, x2, y2, lineWidth, stroke, lineAlpha) => {
-    ctx.globalAlpha = lineAlpha;
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = lineWidth;
-    ctx.lineCap = 'square';
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-  };
+  // Align to the pixel grid so real 1px lines render crisply.
+  const px = Math.round(cx) + (thickness % 2 ? 0.0 : 0);
+  const py = Math.round(cy);
 
-  for (const arm of arms) {
-    if (arm.hide) continue;
-
-    const start = gap;
-    const end = gap + length;
-    const x1 = cx + arm.dx * start;
-    const y1 = cy + arm.dy * start;
-    const x2 = cx + arm.dx * end;
-    const y2 = cy + arm.dy * end;
-
-    if (outline > 0) {
-      drawLine(x1, y1, x2, y2, thickness + outline * 2, '#000', alpha);
-    }
-    drawLine(x1, y1, x2, y2, thickness, color, alpha);
-  }
-
-  if (crosshair.centerDotEnabled) {
-    const dotSize = Math.max(thickness, 2);
+  const drawRect = (x, y, w, h) => {
+    if (w <= 0 || h <= 0) return;
     if (outline > 0) {
       ctx.globalAlpha = alpha;
       ctx.fillStyle = '#000';
-      ctx.fillRect(cx - dotSize / 2 - outline, cy - dotSize / 2 - outline, dotSize + outline * 2, dotSize + outline * 2);
+      ctx.fillRect(x - outline, y - outline, w + outline * 2, h + outline * 2);
     }
     ctx.globalAlpha = alpha;
     ctx.fillStyle = color;
-    ctx.fillRect(cx - dotSize / 2, cy - dotSize / 2, dotSize, dotSize);
+    ctx.fillRect(x, y, w, h);
+  };
+
+  const half = Math.floor(thickness / 2);
+
+  if (length > 0) {
+    // right, left, bottom, and (unless T-style) top arms
+    drawRect(px + gap, py - half, length, thickness);
+    drawRect(px - gap - length, py - half, length, thickness);
+    drawRect(px - half, py + gap, thickness, length);
+    if (!crosshair.tStyleEnabled) drawRect(px - half, py - gap - length, thickness, length);
+  }
+
+  if (crosshair.centerDotEnabled) {
+    const dot = thickness;
+    drawRect(px - Math.floor(dot / 2), py - Math.floor(dot / 2), dot, dot);
   }
 
   ctx.globalAlpha = 1;
 
   if (crosshair.style === 2 || crosshair.style === 3) {
-    ctx.globalAlpha = 0.65;
+    ctx.globalAlpha = 0.6;
     ctx.fillStyle = '#fff';
     ctx.font = '11px JetBrains Mono, monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(`style ${crosshair.style} · split preview simplified`, cx, size - 14);
+    ctx.fillText(`style ${crosshair.style} · dynamic (shown static)`, cx, size - 14);
     ctx.globalAlpha = 1;
   }
 }

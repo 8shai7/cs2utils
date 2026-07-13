@@ -6,7 +6,29 @@ import {
   InvalidShareCode,
 } from 'csgo-sharecode';
 import { parseCommandsToCrosshair, formatCommands, DEFAULT_CROSSHAIR } from './convars.js';
+import {
+  createPsaState,
+  psaCandidates,
+  psaChoose,
+  psaUndo,
+  psaComplete,
+  psaEstimate,
+  psaSpread,
+  psaFinal,
+  PSA_ROUNDS,
+} from './psa.js';
+import { initNadesTool } from './nadesUI.js';
+import { initCommandsTool } from './commandsUI.js';
+import { initProfileTool } from './profileUI.js';
+import { initConfigsTool } from './configsUI.js';
+import { initHighlightsTool } from './highlightsUI.js';
+import { initProsTool } from './prosUI.js';
+import { initHeaderAuth, openReset } from './headerAuth.js';
+import { openContactModal } from './contactModal.js';
+import { api, adoptToken } from './api.js';
+import { refresh as refreshSession } from './session.js';
 import { renderCrosshairPreview } from './preview.js';
+import { initMagnifier } from './magnifier.js';
 import {
   GAMES,
   convertSensitivity,
@@ -18,20 +40,64 @@ import './style.css';
 
 const SHARECODE_RE = /^CSGO(-[\w]{5}){5}$/i;
 
+// Footer donate icons. The actual links are owner-configurable (see the Profile
+// page) and loaded from the backend at runtime.
+const PAYPAL_ICON = `<svg class="donate-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.1 7.3c.3 2-.3 3.6-1.5 4.8-1.2 1.2-3 1.8-5.2 1.8h-1.1c-.4 0-.8.3-.9.8l-.7 4.5-.2 1.1c0 .3-.3.5-.6.5H6.2c-.3 0-.5-.3-.4-.6L8 6.1c.1-.6.6-1 1.2-1h5.3c2.7 0 4.7.9 5.3 2.9.1.4.2.9.3 1.3z"/><path fill="currentColor" opacity=".55" d="M8.9 9.3c.1-.6.6-1 1.2-1h4.2c.6 0 1.1.1 1.6.2-.3-1.6-1.7-2.4-3.9-2.4H6.8c-.4 0-.8.3-.9.8L3.5 21c0 .3.2.6.5.6h3.1l1.8-12.3z"/></svg>`;
+const STEAM_ICON = `<svg class="donate-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2A10 10 0 0 0 2.05 11l5.32 2.2a2.82 2.82 0 0 1 1.6-.5l2.37-3.44v-.05a3.76 3.76 0 1 1 3.76 3.76h-.09l-3.38 2.42a2.83 2.83 0 0 1-5.63.4l-3.8-1.57A10 10 0 1 0 12 2ZM7.6 17.17l-1.22-.5a2.13 2.13 0 0 0 3.94-.17 2.12 2.12 0 0 0-1.15-2.77l-1.26-.52a2.83 2.83 0 0 1 2.14 5.24 2.79 2.79 0 0 1-2.19-1.28Zm9.79-6.4a2.51 2.51 0 1 1 0-5.02 2.51 2.51 0 0 1 0 5.02Zm-1.87-2.51a1.88 1.88 0 1 0 3.76 0 1.88 1.88 0 0 0-3.76 0Z"/></svg>`;
+
 const app = document.querySelector('#app');
 app.innerHTML = `
   <div class="page">
     <header class="hero">
-      <div class="hero-badge">Counter-Strike 2</div>
-      <h1>CS2 Utils</h1>
+      <div class="header-top">
+        <div class="hero-badge">Counter-Strike 2</div>
+        <div class="account-menu" id="account-menu"></div>
+      </div>
+      <h1>AimKit</h1>
       <p class="hero-sub">
         Crosshair code conversion with live preview, plus FPS sensitivity conversion
         that keeps your cm/360 the same across games.
       </p>
       <nav class="tool-nav" role="tablist" aria-label="Tools">
-        <button class="tool-tab active" data-tool="crosshair" role="tab" aria-selected="true">Crosshair</button>
-        <button class="tool-tab" data-tool="sensitivity" role="tab" aria-selected="false">Sensitivity</button>
+        <span class="tool-nav-group" aria-hidden="true">Tune your aim</span>
+        <button class="tool-tab active" data-tool="crosshair" role="tab" aria-selected="true">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
+          <span>Crosshair</span>
+        </button>
+        <button class="tool-tab" data-tool="sensitivity" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="6"/><line x1="12" y1="7" x2="12" y2="11"/></svg>
+          <span>Sensitivity</span>
+        </button>
+        <button class="tool-tab" data-tool="psa" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="4" y1="8" x2="20" y2="8"/><circle cx="9" cy="8" r="2.6" fill="currentColor" stroke="none"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="15" cy="16" r="2.6" fill="currentColor" stroke="none"/></svg>
+          <span>PSA Calculator</span>
+        </button>
+        <span class="tool-nav-sep" aria-hidden="true"></span>
+        <span class="tool-nav-group" aria-hidden="true">Learn &amp; copy setups</span>
+        <button class="tool-tab" data-tool="pros" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3"/><path d="M7 5H4v2a3 3 0 0 0 3 3"/></svg>
+          <span>Pros</span>
+        </button>
+        <button class="tool-tab" data-tool="nades" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+          <span>Nades DB</span>
+        </button>
+        <button class="tool-tab" data-tool="commands" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3"/><line x1="13" y1="15" x2="17" y2="15"/></svg>
+          <span>Commands</span>
+        </button>
+        <span class="tool-nav-sep" aria-hidden="true"></span>
+        <span class="tool-nav-group" aria-hidden="true">Community</span>
+        <button class="tool-tab" data-tool="configs" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M12 11v6"/><path d="M9.5 14.5 12 17l2.5-2.5"/></svg>
+          <span>Configs</span>
+        </button>
+        <button class="tool-tab" data-tool="highlights" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg>
+          <span>Highlights</span>
+        </button>
       </nav>
+      <p class="tool-desc" id="tool-desc"></p>
     </header>
 
     <main id="crosshair-tool" class="tool-view active">
@@ -39,11 +105,29 @@ app.innerHTML = `
         <section class="panel preview-panel">
           <div class="panel-head">
             <h2>Preview</h2>
-            <span class="panel-tag">Approximate in-game look</span>
+            <span class="panel-tag">Actual in-game size</span>
           </div>
           <div class="preview-stage">
             <canvas id="preview-canvas" width="280" height="280" aria-label="Crosshair preview"></canvas>
           </div>
+          <div class="preview-controls">
+            <button type="button" id="magnifier-toggle" class="btn btn-sm ghost" aria-pressed="false" title="Turn on, then hover the preview to zoom in on tiny details">
+              <svg class="btn-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M10.5 3a7.5 7.5 0 1 0 4.55 13.46L20 21m-9.5-5a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11ZM10.5 8v5M8 10.5h5"/></svg>
+              Magnifier
+            </button>
+            <label class="magnifier-zoom">Zoom
+              <select id="magnifier-zoom" aria-label="Magnifier zoom level">
+                <option value="2">2×</option>
+                <option value="4" selected>4×</option>
+                <option value="6">6×</option>
+                <option value="8">8×</option>
+              </select>
+            </label>
+          </div>
+          <label class="field preview-res-field">
+            <span>Resolution <output id="preview-res-scale"></output></span>
+            <select id="preview-res"></select>
+          </label>
           <dl id="preview-stats" class="preview-stats"></dl>
         </section>
 
@@ -118,30 +202,51 @@ app.innerHTML = `
               </label>
             </div>
 
-            <label class="field" id="ed-custom-color-field">
-              <span>Custom color</span>
-              <input id="ed-custom-color" type="color" value="#32fa32" />
-            </label>
+            <div class="field hidden" id="ed-custom-color-field">
+              <span>Custom RGB <output id="ed-rgb-val"></output></span>
+              <div class="rgb-control">
+                <span class="rgb-swatch" id="ed-color-swatch"></span>
+                <input id="ed-custom-color" type="color" value="#32fa32" aria-label="Color picker" />
+              </div>
+              <label class="range-field rgb-slider"><span>R</span><div class="range-row"><input id="ed-r" type="range" min="0" max="255" step="1" /><input id="ed-r-num" class="range-num" type="number" min="0" max="255" step="1" /></div></label>
+              <label class="range-field rgb-slider"><span>G</span><div class="range-row"><input id="ed-g" type="range" min="0" max="255" step="1" /><input id="ed-g-num" class="range-num" type="number" min="0" max="255" step="1" /></div></label>
+              <label class="range-field rgb-slider"><span>B</span><div class="range-row"><input id="ed-b" type="range" min="0" max="255" step="1" /><input id="ed-b-num" class="range-num" type="number" min="0" max="255" step="1" /></div></label>
+            </div>
 
             <label class="field range-field">
-              <span>Size <output id="ed-length-val"></output></span>
-              <input id="ed-length" type="range" min="0" max="15" step="0.5" />
+              <span>Size</span>
+              <div class="range-row">
+                <input id="ed-length" type="range" min="0" max="15" step="0.5" />
+                <input id="ed-length-num" class="range-num" type="number" min="0" max="15" step="0.5" />
+              </div>
             </label>
             <label class="field range-field">
-              <span>Thickness <output id="ed-thickness-val"></output></span>
-              <input id="ed-thickness" type="range" min="0" max="6" step="0.1" />
+              <span>Thickness</span>
+              <div class="range-row">
+                <input id="ed-thickness" type="range" min="0" max="6" step="0.1" />
+                <input id="ed-thickness-num" class="range-num" type="number" min="0" max="6" step="0.1" />
+              </div>
             </label>
             <label class="field range-field">
-              <span>Gap <output id="ed-gap-val"></output></span>
-              <input id="ed-gap" type="range" min="-10" max="10" step="0.5" />
+              <span>Gap</span>
+              <div class="range-row">
+                <input id="ed-gap" type="range" min="-10" max="10" step="0.5" />
+                <input id="ed-gap-num" class="range-num" type="number" min="-10" max="10" step="0.5" />
+              </div>
             </label>
             <label class="field range-field">
-              <span>Outline thickness <output id="ed-outline-val"></output></span>
-              <input id="ed-outline" type="range" min="0" max="3" step="0.5" />
+              <span>Outline thickness</span>
+              <div class="range-row">
+                <input id="ed-outline" type="range" min="0" max="3" step="0.5" />
+                <input id="ed-outline-num" class="range-num" type="number" min="0" max="3" step="0.5" />
+              </div>
             </label>
             <label class="field range-field">
-              <span>Alpha <output id="ed-alpha-val"></output></span>
-              <input id="ed-alpha" type="range" min="0" max="255" step="5" />
+              <span>Alpha</span>
+              <div class="range-row">
+                <input id="ed-alpha" type="range" min="0" max="255" step="5" />
+                <input id="ed-alpha-num" class="range-num" type="number" min="0" max="255" step="1" />
+              </div>
             </label>
 
             <div class="editor-toggles">
@@ -232,6 +337,17 @@ app.innerHTML = `
             </label>
           </div>
 
+          <div class="sens-grid">
+            <label class="field hidden" id="source-yaw-field">
+              <span>Source custom yaw (°/count)</span>
+              <input id="sens-source-yaw" type="number" min="0.00001" step="0.0001" inputmode="decimal" value="0.022" />
+            </label>
+            <label class="field hidden" id="target-yaw-field">
+              <span>Target custom yaw (°/count)</span>
+              <input id="sens-target-yaw" type="number" min="0.00001" step="0.0001" inputmode="decimal" value="0.022" />
+            </label>
+          </div>
+
           <div class="actions">
             <button class="btn primary" id="sens-swap">Swap games</button>
             <button class="btn" id="copy-sens">Copy converted sens</button>
@@ -244,12 +360,121 @@ app.innerHTML = `
       </div>
     </main>
 
-    <footer class="footer">Not affiliated with Valve. Share codes and yaw values are community-verified.</footer>
+    <main id="psa-tool" class="tool-view">
+      <div class="layout layout-sensitivity">
+        <section class="panel sens-summary-panel">
+          <div class="panel-head">
+            <h2>PSA Method</h2>
+            <span class="panel-tag">Perfect Sensitivity Approximation</span>
+          </div>
+          <div class="sens-hero-stat">
+            <span id="psa-result" class="sens-big">—</span>
+            <span class="sens-unit" id="psa-result-label">recommended sensitivity</span>
+          </div>
+          <dl id="psa-stats" class="preview-stats sens-stats"></dl>
+          <p class="sens-note">A 7-round binary search: test both values in your usual practice routine, pick the side that feels more controllable, and repeat until it converges on your ideal sensitivity.</p>
+        </section>
+
+        <section class="panel converter-panel">
+          <label class="field">
+            <span>Starting in-game sensitivity</span>
+            <input id="psa-start" type="number" min="0" step="0.01" inputmode="decimal" value="1.00" />
+          </label>
+          <div class="actions">
+            <button class="btn primary" id="psa-begin">Start PSA</button>
+          </div>
+
+          <div id="psa-round" class="psa-round hidden">
+            <div class="psa-progress">
+              <span>Round <strong id="psa-round-num">1</strong> / 7</span>
+              <div class="psa-bar"><div id="psa-bar-fill" class="psa-bar-fill"></div></div>
+            </div>
+            <p class="psa-instruction">Test both values in-game, then choose the one that feels more controllable.</p>
+            <div class="psa-choices">
+              <button class="btn psa-choice" id="psa-lower">
+                <span class="psa-choice-label">Lower feels better</span>
+                <span class="psa-choice-val" id="psa-lower-val">—</span>
+              </button>
+              <button class="btn psa-choice" id="psa-higher">
+                <span class="psa-choice-label">Higher feels better</span>
+                <span class="psa-choice-val" id="psa-higher-val">—</span>
+              </button>
+            </div>
+            <div class="actions">
+              <button class="btn ghost" id="psa-undo">Undo last</button>
+              <button class="btn ghost" id="psa-reset">Reset</button>
+            </div>
+          </div>
+
+          <div id="psa-history" class="sens-formula hidden"></div>
+          <div id="psa-status" class="status" role="status" aria-live="polite"></div>
+        </section>
+      </div>
+    </main>
+
+    <main id="nades-tool" class="tool-view"></main>
+
+    <main id="commands-tool" class="tool-view"></main>
+
+    <main id="configs-tool" class="tool-view"></main>
+
+    <main id="highlights-tool" class="tool-view"></main>
+
+    <main id="pros-tool" class="tool-view"></main>
+
+    <main id="profile-tool" class="tool-view"></main>
+
+    <footer class="footer">
+      <section class="donate hidden" id="donate-section">
+        <p class="donate-label">Found AimKit useful? Support the project:</p>
+        <div class="donate-actions" id="donate-actions"></div>
+      </section>
+      <p class="footer-note">Not affiliated with Valve. Share codes and yaw values are community-verified.</p>
+      <p class="footer-links"><button class="footer-link" id="contact-open">Contact us</button></p>
+    </footer>
+
+    <div class="donate-fab hidden" id="donate-fab" aria-label="Support AimKit"></div>
   </div>
 `;
 
 const canvas = /** @type {HTMLCanvasElement} */ (document.querySelector('#preview-canvas'));
 const previewStats = document.querySelector('#preview-stats');
+const previewResSelect = /** @type {HTMLSelectElement} */ (document.querySelector('#preview-res'));
+const previewResScale = document.querySelector('#preview-res-scale');
+
+// Common CS2 resolutions. The crosshair scales with vertical resolution, so the
+// pixel scale is height / 1080 (1080p ≈ 1 unit per pixel).
+const PREVIEW_RESOLUTIONS = [
+  { id: '1920x1080', h: 1080, label: '1920 × 1080 (16:9)' },
+  { id: '2560x1440', h: 1440, label: '2560 × 1440 (16:9)' },
+  { id: '3840x2160', h: 2160, label: '3840 × 2160 (4K)' },
+  { id: '1600x900', h: 900, label: '1600 × 900 (16:9)' },
+  { id: '1366x768', h: 768, label: '1366 × 768 (16:9)' },
+  { id: '1280x960', h: 960, label: '1280 × 960 (4:3)' },
+  { id: '1024x768', h: 768, label: '1024 × 768 (4:3)' },
+  { id: '1280x1024', h: 1024, label: '1280 × 1024 (5:4)' },
+];
+
+let lastPreviewCrosshair = null;
+
+function previewScale() {
+  const res = PREVIEW_RESOLUTIONS.find((r) => r.id === previewResSelect?.value) || PREVIEW_RESOLUTIONS[0];
+  return res.h / 1080;
+}
+
+const magnifier = initMagnifier({
+  source: canvas,
+  stage: document.querySelector('.preview-stage'),
+  toggleBtn: document.querySelector('#magnifier-toggle'),
+  zoomSelect: /** @type {HTMLSelectElement} */ (document.querySelector('#magnifier-zoom')),
+});
+
+function drawPreview(crosshair) {
+  lastPreviewCrosshair = crosshair;
+  renderCrosshairPreview(canvas, crosshair, previewScale());
+  if (previewResScale) previewResScale.textContent = `${previewScale().toFixed(2)}× scale`;
+  magnifier.refresh();
+}
 const crosshairStatus = document.querySelector('#crosshair-status');
 const sensitivityStatus = document.querySelector('#sensitivity-status');
 
@@ -266,6 +491,10 @@ const sensSourceDpi = /** @type {HTMLInputElement} */ (document.querySelector('#
 const sensTargetDpi = /** @type {HTMLInputElement} */ (document.querySelector('#sens-target-dpi'));
 const sensSourceMYaw = /** @type {HTMLInputElement} */ (document.querySelector('#sens-source-myaw'));
 const sensTargetMYaw = /** @type {HTMLInputElement} */ (document.querySelector('#sens-target-myaw'));
+const sensSourceYaw = /** @type {HTMLInputElement} */ (document.querySelector('#sens-source-yaw'));
+const sensTargetYaw = /** @type {HTMLInputElement} */ (document.querySelector('#sens-target-yaw'));
+const sourceYawField = document.querySelector('#source-yaw-field');
+const targetYawField = document.querySelector('#target-yaw-field');
 const mYawFields = document.querySelector('#m-yaw-fields');
 const sensCm360 = document.querySelector('#sens-cm360');
 const sensStats = document.querySelector('#sens-stats');
@@ -301,7 +530,7 @@ function setStatus(el, message, kind = '') {
  * @param {import('csgo-sharecode').Crosshair} crosshair
  */
 function updatePreview(crosshair) {
-  renderCrosshairPreview(canvas, crosshair);
+  drawPreview(crosshair);
   previewStats.innerHTML = `
     <div><dt>Style</dt><dd>${crosshair.style}</dd></div>
     <div><dt>Size</dt><dd>${crosshair.length}</dd></div>
@@ -384,6 +613,9 @@ function updateMYawVisibility() {
   const show =
     GAMES[sensFromGame.value]?.supportsMYaw || GAMES[sensToGame.value]?.supportsMYaw;
   mYawFields?.classList.toggle('hidden', !show);
+
+  sourceYawField?.classList.toggle('hidden', !GAMES[sensFromGame.value]?.custom);
+  targetYawField?.classList.toggle('hidden', !GAMES[sensToGame.value]?.custom);
 }
 
 function updateSensitivity() {
@@ -392,8 +624,19 @@ function updateSensitivity() {
   const targetDpi = Number(sensTargetDpi.value);
   const sourceMYaw = Number(sensSourceMYaw.value) || 0.022;
   const targetMYaw = Number(sensTargetMYaw.value) || 0.022;
+  const sourceCustomYaw = Number(sensSourceYaw.value);
+  const targetCustomYaw = Number(sensTargetYaw.value);
 
   updateMYawVisibility();
+
+  if (GAMES[sensFromGame.value]?.custom && !(sourceCustomYaw > 0)) {
+    setStatus(sensitivityStatus, 'Enter a valid source custom yaw (° per count).', 'error');
+    return;
+  }
+  if (GAMES[sensToGame.value]?.custom && !(targetCustomYaw > 0)) {
+    setStatus(sensitivityStatus, 'Enter a valid target custom yaw (° per count).', 'error');
+    return;
+  }
 
   if (!Number.isFinite(sourceSens) || sourceSens <= 0) {
     sensTarget.value = '';
@@ -416,6 +659,8 @@ function updateSensitivity() {
     targetDpi,
     sourceMYaw,
     targetMYaw,
+    sourceCustomYaw,
+    targetCustomYaw,
   });
 
   const fromName = GAMES[sensFromGame.value].name;
@@ -461,19 +706,49 @@ function loadCs2ValorantExample() {
   updateSensitivity();
 }
 
-document.querySelectorAll('.tool-tab').forEach((tab) => {
-  tab.addEventListener('click', () => {
-    const tool = tab.getAttribute('data-tool');
-    document.querySelectorAll('.tool-tab').forEach((t) => {
-      const active = t.getAttribute('data-tool') === tool;
-      t.classList.toggle('active', active);
-      t.setAttribute('aria-selected', String(active));
-    });
-    document.querySelectorAll('.tool-view').forEach((view) => {
-      view.classList.toggle('active', view.id === `${tool}-tool`);
-    });
+const TOOL_DESCRIPTIONS = {
+  crosshair:
+    'Convert a crosshair share code into console commands, build a code from commands, or design one visually with a live preview.',
+  sensitivity:
+    'Keep the same cm/360 aim feel across games — with custom yaw values and DPI changes handled for you.',
+  psa: 'Dial in your ideal sensitivity with a guided 7-round A/B test (Perfect Sensitivity Approximation).',
+  nades:
+    'Browse community grenade line-ups, or sign in to submit your own with a 2D throw guide, videos and photos.',
+  commands:
+    'Copy up-to-date CS2 launch options and console commands, recommend the ones that help, and share tips in the comments.',
+  configs:
+    'Share your CS2 configs and video settings, download other players\u2019 setups, and rate the best ones.',
+  highlights: 'Share your best CS2 clips, watch the community\u2019s highlights, and report anything that breaks the rules.',
+  pros: 'Browse pro players\u2019 sensitivity, DPI, resolution and crosshair settings.',
+  profile: 'Your account, contributions, and settings.',
+};
+
+const toolDesc = document.querySelector('#tool-desc');
+function setToolDescription(tool) {
+  if (toolDesc) toolDesc.textContent = TOOL_DESCRIPTIONS[tool] || '';
+}
+
+function activateTool(tool) {
+  document.querySelectorAll('.tool-nav .tool-tab').forEach((t) => {
+    const active = t.getAttribute('data-tool') === tool;
+    t.classList.toggle('active', active);
+    t.setAttribute('aria-selected', String(active));
   });
+  document.querySelectorAll('.tool-view').forEach((view) => {
+    view.classList.toggle('active', view.id === `${tool}-tool`);
+  });
+  setToolDescription(tool);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+document.querySelectorAll('.tool-nav .tool-tab').forEach((tab) => {
+  tab.addEventListener('click', () => activateTool(tab.getAttribute('data-tool')));
 });
+
+// Allow other components (e.g. the header account menu) to navigate.
+document.addEventListener('aimkit:navigate', (e) => activateTool(e.detail));
+
+setToolDescription('crosshair');
 
 document.querySelectorAll('.converter-panel .tab').forEach((tab) => {
   tab.addEventListener('click', () => {
@@ -498,7 +773,7 @@ sharecodeInput.addEventListener('keydown', (e) => {
 commandsInput.addEventListener('input', () => {
   const text = commandsInput.value.trim();
   if (!text) {
-    renderCrosshairPreview(canvas, null);
+    drawPreview(null);
     previewStats.innerHTML = '';
     return;
   }
@@ -557,6 +832,16 @@ const edStyle = /** @type {HTMLSelectElement} */ (document.querySelector('#ed-st
 const edColor = /** @type {HTMLSelectElement} */ (document.querySelector('#ed-color'));
 const edCustomColor = /** @type {HTMLInputElement} */ (document.querySelector('#ed-custom-color'));
 const edCustomColorField = document.querySelector('#ed-custom-color-field');
+const edR = /** @type {HTMLInputElement} */ (document.querySelector('#ed-r'));
+const edG = /** @type {HTMLInputElement} */ (document.querySelector('#ed-g'));
+const edB = /** @type {HTMLInputElement} */ (document.querySelector('#ed-b'));
+const edRgbVal = document.querySelector('#ed-rgb-val');
+const edColorSwatch = /** @type {HTMLElement} */ (document.querySelector('#ed-color-swatch'));
+
+/** Set a control's value without disturbing it while the user is typing in it. */
+function setControlValue(el, value) {
+  if (el && document.activeElement !== el) el.value = String(value);
+}
 const edLength = /** @type {HTMLInputElement} */ (document.querySelector('#ed-length'));
 const edThickness = /** @type {HTMLInputElement} */ (document.querySelector('#ed-thickness'));
 const edGap = /** @type {HTMLInputElement} */ (document.querySelector('#ed-gap'));
@@ -568,11 +853,30 @@ const edOutlineOn = /** @type {HTMLInputElement} */ (document.querySelector('#ed
 const edAlphaOn = /** @type {HTMLInputElement} */ (document.querySelector('#ed-alpha-on'));
 const edSharecode = /** @type {HTMLInputElement} */ (document.querySelector('#ed-sharecode'));
 const edCommands = /** @type {HTMLTextAreaElement} */ (document.querySelector('#ed-commands'));
-const edLengthVal = document.querySelector('#ed-length-val');
-const edThicknessVal = document.querySelector('#ed-thickness-val');
-const edGapVal = document.querySelector('#ed-gap-val');
-const edOutlineVal = document.querySelector('#ed-outline-val');
-const edAlphaVal = document.querySelector('#ed-alpha-val');
+const edLengthNum = /** @type {HTMLInputElement} */ (document.querySelector('#ed-length-num'));
+const edThicknessNum = /** @type {HTMLInputElement} */ (document.querySelector('#ed-thickness-num'));
+const edGapNum = /** @type {HTMLInputElement} */ (document.querySelector('#ed-gap-num'));
+const edOutlineNum = /** @type {HTMLInputElement} */ (document.querySelector('#ed-outline-num'));
+const edAlphaNum = /** @type {HTMLInputElement} */ (document.querySelector('#ed-alpha-num'));
+const edRNum = /** @type {HTMLInputElement} */ (document.querySelector('#ed-r-num'));
+const edGNum = /** @type {HTMLInputElement} */ (document.querySelector('#ed-g-num'));
+const edBNum = /** @type {HTMLInputElement} */ (document.querySelector('#ed-b-num'));
+
+const clampNum = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+
+// Paired slider + number-input fields (source of truth is the `editor` object).
+const EDITOR_FIELDS = [
+  { key: 'length', slider: edLength, num: edLengthNum, min: 0, max: 15 },
+  { key: 'thickness', slider: edThickness, num: edThicknessNum, min: 0, max: 6 },
+  { key: 'gap', slider: edGap, num: edGapNum, min: -10, max: 10 },
+  { key: 'outline', slider: edOutline, num: edOutlineNum, min: 0, max: 3 },
+  { key: 'alpha', slider: edAlpha, num: edAlphaNum, min: 0, max: 255 },
+];
+const RGB_FIELDS = [
+  { key: 'red', slider: edR, num: edRNum },
+  { key: 'green', slider: edG, num: edGNum },
+  { key: 'blue', slider: edB, num: edBNum },
+];
 
 /** @param {number} r @param {number} g @param {number} b */
 function rgbToHex(r, g, b) {
@@ -587,33 +891,49 @@ function hexToRgb(hex) {
   return { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) };
 }
 
+/** Reflect the editor's current color/RGB state onto all color controls. */
+function syncColorControls() {
+  const hex = rgbToHex(editor.red, editor.green, editor.blue);
+  edColor.value = String(editor.color);
+  setControlValue(edCustomColor, hex);
+  for (const f of RGB_FIELDS) {
+    setControlValue(f.slider, editor[f.key]);
+    setControlValue(f.num, editor[f.key]);
+  }
+  if (edRgbVal) edRgbVal.textContent = `${editor.red}, ${editor.green}, ${editor.blue}`;
+  if (edColorSwatch) edColorSwatch.style.background = hex;
+  edCustomColorField?.classList.toggle('hidden', editor.color !== 5);
+}
+
 /** Push the current editor state onto every control (used on init / reset). */
+/** Mirror the editor state onto each slider + number input. */
+function syncFieldsToState() {
+  for (const f of EDITOR_FIELDS) {
+    setControlValue(f.slider, clampNum(editor[f.key], f.min, f.max));
+    setControlValue(f.num, editor[f.key]);
+  }
+}
+
 function applyStateToControls() {
   edStyle.value = String(editor.style);
-  edColor.value = String(editor.color);
-  edCustomColor.value = rgbToHex(editor.red, editor.green, editor.blue);
-  edLength.value = String(editor.length);
-  edThickness.value = String(editor.thickness);
-  edGap.value = String(editor.gap);
-  edOutline.value = String(editor.outline);
-  edAlpha.value = String(editor.alpha);
   edDot.checked = editor.centerDotEnabled;
   edTStyle.checked = editor.tStyleEnabled;
   edOutlineOn.checked = editor.outlineEnabled;
   edAlphaOn.checked = editor.alphaEnabled;
+  syncFieldsToState();
+  syncColorControls();
 }
 
 /** Update the editor's own outputs (badges, code, commands) without touching the shared preview. */
 function renderEditorOutputs() {
-  edLengthVal.textContent = String(editor.length);
-  edThicknessVal.textContent = String(editor.thickness);
-  edGapVal.textContent = String(editor.gap);
-  edOutlineVal.textContent = String(editor.outline);
-  edAlphaVal.textContent = String(editor.alpha);
+  syncFieldsToState();
 
-  edCustomColorField?.classList.toggle('hidden', editor.color !== 5);
-  edOutline.disabled = !editor.outlineEnabled;
-  edAlpha.disabled = !editor.alphaEnabled;
+  const outlineOff = !editor.outlineEnabled;
+  edOutline.disabled = outlineOff;
+  edOutlineNum.disabled = outlineOff;
+  const alphaOff = !editor.alphaEnabled;
+  edAlpha.disabled = alphaOff;
+  edAlphaNum.disabled = alphaOff;
 
   try {
     edSharecode.value = encodeCrosshair(editor);
@@ -629,42 +949,93 @@ function renderEditor() {
   renderEditorOutputs();
 }
 
-/** Read every control into the editor state, then re-render. */
-function readEditorControls() {
+/** Style + checkboxes → editor state. */
+function readToggles() {
   editor.style = Number(edStyle.value);
-  editor.length = Number(edLength.value);
-  editor.thickness = Number(edThickness.value);
-  editor.gap = Number(edGap.value);
-  editor.outline = Number(edOutline.value);
-  editor.alpha = Number(edAlpha.value);
   editor.centerDotEnabled = edDot.checked;
   editor.tStyleEnabled = edTStyle.checked;
   editor.outlineEnabled = edOutlineOn.checked;
   editor.alphaEnabled = edAlphaOn.checked;
-  editor.color = Number(edColor.value);
+  renderEditor();
+}
 
-  if (editor.color === 5) {
-    const { r, g, b } = hexToRgb(edCustomColor.value);
-    editor.red = r;
-    editor.green = g;
-    editor.blue = b;
-  } else {
+function onFieldSlider(f) {
+  editor[f.key] = Number(f.slider.value);
+  renderEditor();
+}
+
+/** Typed number → editor state (clamped to the field's valid range). */
+function onFieldNum(f, commit) {
+  const raw = Number(f.num.value);
+  if (f.num.value === '' || !Number.isFinite(raw)) {
+    if (commit) f.num.value = String(editor[f.key]);
+    return;
+  }
+  editor[f.key] = clampNum(raw, f.min, f.max);
+  if (commit) f.num.value = String(editor[f.key]);
+  renderEditor();
+}
+
+/** Any RGB number input → full custom color. */
+function onRgbNum() {
+  editor.color = 5;
+  editor.red = clampNum(Number(edRNum.value) || 0, 0, 255);
+  editor.green = clampNum(Number(edGNum.value) || 0, 0, 255);
+  editor.blue = clampNum(Number(edBNum.value) || 0, 0, 255);
+  syncColorControls();
+  renderEditor();
+}
+
+/** Color preset dropdown: presets set fixed RGB; "Custom" reveals full RGB control. */
+function onColorSelect() {
+  editor.color = Number(edColor.value);
+  if (editor.color !== 5) {
     const [r, g, b] = EDITOR_PRESET_COLORS[editor.color] ?? EDITOR_PRESET_COLORS[1];
     editor.red = r;
     editor.green = g;
     editor.blue = b;
-    edCustomColor.value = rgbToHex(r, g, b);
   }
-
+  syncColorControls();
   renderEditor();
 }
 
-[edStyle, edColor, edCustomColor, edLength, edThickness, edGap, edOutline, edAlpha, edDot, edTStyle, edOutlineOn, edAlphaOn].forEach(
-  (el) => {
-    el.addEventListener('input', readEditorControls);
-    el.addEventListener('change', readEditorControls);
-  }
-);
+/** Any RGB slider changed → full custom color. */
+function onRgbSlider() {
+  editor.color = 5;
+  editor.red = Number(edR.value);
+  editor.green = Number(edG.value);
+  editor.blue = Number(edB.value);
+  syncColorControls();
+  renderEditor();
+}
+
+/** Native color picker changed → full custom color. */
+function onColorPicker() {
+  editor.color = 5;
+  const { r, g, b } = hexToRgb(edCustomColor.value);
+  editor.red = r;
+  editor.green = g;
+  editor.blue = b;
+  syncColorControls();
+  renderEditor();
+}
+
+EDITOR_FIELDS.forEach((f) => {
+  f.slider.addEventListener('input', () => onFieldSlider(f));
+  f.num.addEventListener('input', () => onFieldNum(f, false));
+  f.num.addEventListener('change', () => onFieldNum(f, true));
+});
+
+[edStyle, edDot, edTStyle, edOutlineOn, edAlphaOn].forEach((el) => el.addEventListener('change', readToggles));
+
+edColor.addEventListener('change', onColorSelect);
+edCustomColor.addEventListener('input', onColorPicker);
+edCustomColor.addEventListener('change', onColorPicker);
+RGB_FIELDS.forEach((f) => {
+  f.slider.addEventListener('input', onRgbSlider);
+  f.num.addEventListener('input', onRgbNum);
+  f.num.addEventListener('change', onRgbNum);
+});
 
 document.querySelector('#ed-copy-code')?.addEventListener('click', () => {
   copyText(crosshairStatus, edSharecode.value, 'share code');
@@ -688,7 +1059,7 @@ renderEditorOutputs();
 sensFromGame.innerHTML = gameOptionsHtml('cs2');
 sensToGame.innerHTML = gameOptionsHtml('valorant');
 
-[sensFromGame, sensToGame, sensSource, sensSourceDpi, sensTargetDpi, sensSourceMYaw, sensTargetMYaw].forEach((el) => {
+[sensFromGame, sensToGame, sensSource, sensSourceDpi, sensTargetDpi, sensSourceMYaw, sensTargetMYaw, sensSourceYaw, sensTargetYaw].forEach((el) => {
   el.addEventListener('input', updateSensitivity);
   el.addEventListener('change', updateSensitivity);
 });
@@ -699,6 +1070,204 @@ document.querySelector('#copy-sens')?.addEventListener('click', () => {
 });
 document.querySelector('#sens-cs2-val')?.addEventListener('click', loadCs2ValorantExample);
 
-renderCrosshairPreview(canvas, null);
+// --- PSA (Perfect Sensitivity Approximation) calculator ---
+const psaStart = /** @type {HTMLInputElement} */ (document.querySelector('#psa-start'));
+const psaBegin = document.querySelector('#psa-begin');
+const psaRound = document.querySelector('#psa-round');
+const psaRoundNum = document.querySelector('#psa-round-num');
+const psaBarFill = document.querySelector('#psa-bar-fill');
+const psaLower = document.querySelector('#psa-lower');
+const psaHigher = document.querySelector('#psa-higher');
+const psaLowerVal = document.querySelector('#psa-lower-val');
+const psaHigherVal = document.querySelector('#psa-higher-val');
+const psaUndoBtn = document.querySelector('#psa-undo');
+const psaResetBtn = document.querySelector('#psa-reset');
+const psaResult = document.querySelector('#psa-result');
+const psaResultLabel = document.querySelector('#psa-result-label');
+const psaStats = document.querySelector('#psa-stats');
+const psaHistory = document.querySelector('#psa-history');
+const psaStatus = document.querySelector('#psa-status');
+
+/** @type {import('./psa.js').PsaState | null} */
+let psaState = null;
+
+function renderPsa() {
+  if (!psaState) {
+    psaRound?.classList.add('hidden');
+    psaHistory?.classList.add('hidden');
+    psaResult.textContent = '—';
+    psaResultLabel.textContent = 'recommended sensitivity';
+    psaStats.innerHTML = '';
+    return;
+  }
+
+  const done = psaComplete(psaState);
+  const estimate = done ? psaFinal(psaState) : psaEstimate(psaState);
+
+  psaResult.textContent = formatSens(estimate, 3);
+  psaResultLabel.textContent = done ? 'final recommended sensitivity' : 'current estimate';
+
+  psaStats.innerHTML = `
+    <div><dt>Range low</dt><dd>${formatSens(psaState.lo, 3)}</dd></div>
+    <div><dt>Range high</dt><dd>${formatSens(psaState.hi, 3)}</dd></div>
+    <div><dt>Spread</dt><dd>± ${formatSens((psaSpread(psaState) / 2) * 100, 1)}%</dd></div>
+    <div><dt>Base</dt><dd>${formatSens(psaState.base, 3)}</dd></div>
+  `;
+
+  if (done) {
+    psaRound?.classList.add('hidden');
+    setStatus(psaStatus, `Done — set your sensitivity to ${formatSens(estimate, 3)} and play a few sessions before changing again.`, 'ok');
+  } else {
+    const { lower, higher } = psaCandidates(psaState);
+    psaRound?.classList.remove('hidden');
+    psaRoundNum.textContent = String(psaState.round);
+    psaBarFill.style.width = `${((psaState.round - 1) / PSA_ROUNDS) * 100}%`;
+    psaLowerVal.textContent = formatSens(lower, 3);
+    psaHigherVal.textContent = formatSens(higher, 3);
+    setStatus(psaStatus, `Round ${psaState.round} of ${PSA_ROUNDS}: test both values, then pick the side that feels better.`, '');
+  }
+
+  if (psaState.choices.length > 0) {
+    psaHistory?.classList.remove('hidden');
+    const rows = psaState.choices
+      .map(
+        (c) =>
+          `Round ${c.round}: chose <strong>${c.side}</strong> (${formatSens(c.lower, 3)} vs ${formatSens(c.higher, 3)})`,
+      )
+      .join('<br />');
+    psaHistory.innerHTML = `<strong>History:</strong><br />${rows}`;
+  } else {
+    psaHistory?.classList.add('hidden');
+    psaHistory.innerHTML = '';
+  }
+}
+
+function startPsa() {
+  const base = Number(psaStart.value);
+  if (!Number.isFinite(base) || base <= 0) {
+    setStatus(psaStatus, 'Enter a valid starting sensitivity greater than 0.', 'error');
+    return;
+  }
+  psaState = createPsaState(base);
+  renderPsa();
+}
+
+function choosePsa(side) {
+  if (!psaState || psaComplete(psaState)) return;
+  psaState = psaChoose(psaState, side);
+  renderPsa();
+}
+
+psaBegin?.addEventListener('click', startPsa);
+psaLower?.addEventListener('click', () => choosePsa('lower'));
+psaHigher?.addEventListener('click', () => choosePsa('higher'));
+psaUndoBtn?.addEventListener('click', () => {
+  if (!psaState) return;
+  psaState = psaUndo(psaState);
+  renderPsa();
+});
+psaResetBtn?.addEventListener('click', () => {
+  psaState = null;
+  renderPsa();
+  setStatus(psaStatus, 'Enter a starting sensitivity and press Start PSA.', '');
+});
+
+previewResSelect.innerHTML = PREVIEW_RESOLUTIONS.map(
+  (r) => `<option value="${r.id}">${r.label}</option>`,
+).join('');
+previewResSelect.addEventListener('change', () => drawPreview(lastPreviewCrosshair));
+
+drawPreview(null);
 decodeFromCode();
 loadCs2ValorantExample();
+
+// --- Footer donate links (owner-configurable, loaded from the backend) ---
+function escAttr(url) {
+  return String(url || '').replaceAll('&', '&amp;').replaceAll('"', '&quot;');
+}
+
+function renderDonate(settings) {
+  const section = document.querySelector('#donate-section');
+  const actions = document.querySelector('#donate-actions');
+  if (!section || !actions) return;
+  const buttons = [];
+  if (settings.paypalUrl) {
+    buttons.push(
+      `<a class="btn donate-btn paypal" href="${escAttr(settings.paypalUrl)}" target="_blank" rel="noopener noreferrer">${PAYPAL_ICON}<span>Donate via PayPal</span></a>`,
+    );
+  }
+  if (settings.steamTradeUrl) {
+    buttons.push(
+      `<a class="btn donate-btn steam" href="${escAttr(settings.steamTradeUrl)}" target="_blank" rel="noopener noreferrer">${STEAM_ICON}<span>Donate Steam skins</span></a>`,
+    );
+  }
+  actions.innerHTML = buttons.join('');
+  section.classList.toggle('hidden', buttons.length === 0);
+
+  // Floating always-visible donate buttons.
+  const fab = document.querySelector('#donate-fab');
+  if (fab) {
+    const fabButtons = [];
+    if (settings.paypalUrl) {
+      fabButtons.push(
+        `<a class="donate-fab-btn paypal" href="${escAttr(settings.paypalUrl)}" target="_blank" rel="noopener noreferrer" title="Donate via PayPal">${PAYPAL_ICON}<span>PayPal</span></a>`,
+      );
+    }
+    if (settings.steamTradeUrl) {
+      fabButtons.push(
+        `<a class="donate-fab-btn steam" href="${escAttr(settings.steamTradeUrl)}" target="_blank" rel="noopener noreferrer" title="Donate Steam skins">${STEAM_ICON}<span>Steam</span></a>`,
+      );
+    }
+    fab.innerHTML = fabButtons.length ? `<span class="donate-fab-label">Support AimKit</span>${fabButtons.join('')}` : '';
+    fab.classList.toggle('hidden', fabButtons.length === 0);
+  }
+}
+
+async function loadDonate() {
+  try {
+    renderDonate(await api.settings.get());
+  } catch {
+    renderDonate({ paypalUrl: '', steamTradeUrl: '' });
+  }
+}
+
+document.addEventListener('aimkit:settings-updated', loadDonate);
+document.querySelector('#contact-open')?.addEventListener('click', openContactModal);
+
+initHeaderAuth();
+
+// Password-reset deep link: /?reset=<token>
+const resetToken = new URLSearchParams(window.location.search).get('reset');
+if (resetToken) {
+  openReset(resetToken);
+  const url = new URL(window.location.href);
+  url.searchParams.delete('reset');
+  window.history.replaceState({}, '', url);
+}
+
+// Steam login redirect: /?token=<jwt> (or ?steam_error=1)
+const steamParams = new URLSearchParams(window.location.search);
+if (steamParams.get('token')) {
+  adoptToken(steamParams.get('token'));
+  refreshSession();
+  const url = new URL(window.location.href);
+  url.searchParams.delete('token');
+  window.history.replaceState({}, '', url);
+} else if (steamParams.get('steam') === 'linked') {
+  refreshSession();
+  const url = new URL(window.location.href);
+  url.searchParams.delete('steam');
+  window.history.replaceState({}, '', url);
+} else if (steamParams.get('steam_error')) {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('steam_error');
+  window.history.replaceState({}, '', url);
+}
+
+initNadesTool();
+initCommandsTool();
+initConfigsTool();
+initHighlightsTool();
+initProsTool();
+initProfileTool();
+loadDonate();

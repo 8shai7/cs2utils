@@ -1,4 +1,4 @@
-/** @typedef {{ id: string, name: string, yaw: number, supportsMYaw?: boolean }} GameProfile */
+/** @typedef {{ id: string, name: string, yaw: number, supportsMYaw?: boolean, custom?: boolean }} GameProfile */
 
 /** @type {Record<string, GameProfile>} */
 export const GAMES = {
@@ -14,7 +14,11 @@ export const GAMES = {
   marvel: { id: 'marvel', name: 'Marvel Rivals', yaw: 0.022 },
   deadlock: { id: 'deadlock', name: 'Deadlock', yaw: 0.044 },
   tf: { id: 'tf', name: 'The Finals', yaw: 0.0066 },
+  custom: { id: 'custom', name: 'Custom (yaw)', yaw: 0.022, custom: true },
 };
+
+/** Default yaw used when a custom game has no valid override yet. */
+export const DEFAULT_CUSTOM_YAW = 0.022;
 
 /** @type {GameProfile[]} */
 export const GAME_LIST = Object.values(GAMES);
@@ -22,11 +26,13 @@ export const GAME_LIST = Object.values(GAMES);
 /**
  * @param {string} gameId
  * @param {number} [mYaw]
+ * @param {number} [customYaw]
  * @returns {number}
  */
-export function getEffectiveYaw(gameId, mYaw = 0.022) {
+export function getEffectiveYaw(gameId, mYaw = 0.022, customYaw) {
   const game = GAMES[gameId];
   if (!game) throw new Error(`Unknown game: ${gameId}`);
+  if (game.custom) return Number(customYaw) > 0 ? Number(customYaw) : game.yaw;
   if (game.supportsMYaw) return mYaw;
   return game.yaw;
 }
@@ -62,6 +68,8 @@ export function sensitivityFromCm360(cm, dpi, yaw) {
  * @param {number} params.targetDpi
  * @param {number} [params.sourceMYaw]
  * @param {number} [params.targetMYaw]
+ * @param {number} [params.sourceCustomYaw]
+ * @param {number} [params.targetCustomYaw]
  */
 export function convertSensitivity({
   sourceGame,
@@ -71,9 +79,11 @@ export function convertSensitivity({
   targetDpi,
   sourceMYaw = 0.022,
   targetMYaw = 0.022,
+  sourceCustomYaw,
+  targetCustomYaw,
 }) {
-  const sourceYaw = getEffectiveYaw(sourceGame, sourceMYaw);
-  const targetYaw = getEffectiveYaw(targetGame, targetMYaw);
+  const sourceYaw = getEffectiveYaw(sourceGame, sourceMYaw, sourceCustomYaw);
+  const targetYaw = getEffectiveYaw(targetGame, targetMYaw, targetCustomYaw);
   const targetSens = sourceSens * (sourceDpi / targetDpi) * (sourceYaw / targetYaw);
   const distanceCm = cm360(sourceSens, sourceDpi, sourceYaw);
   const targetCm = cm360(targetSens, targetDpi, targetYaw);

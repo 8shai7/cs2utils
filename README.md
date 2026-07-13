@@ -1,6 +1,6 @@
-# CS2 Utils
+# AimKit
 
-Counter-Strike 2 utilities: crosshair share code conversion and FPS sensitivity matching.
+[aimkit.net](https://aimkit.net) — Counter-Strike 2 utilities: crosshair share-code conversion, FPS sensitivity matching, a PSA sensitivity finder, and a community nades database with accounts and admin moderation.
 
 ## Features
 
@@ -14,9 +14,19 @@ Counter-Strike 2 utilities: crosshair share code conversion and FPS sensitivity 
 - **Game-to-game conversion** — CS2, Valorant, Apex, Overwatch 2, R6, Fortnite, CoD, and more
 - **cm/360 matching** — keeps the same physical mouse distance for a full turn
 - **DPI changes** — convert when switching mouse DPI between games
-- **Custom m_yaw** — optional CS2 `m_yaw` override for advanced users
+- **Custom yaw** — supply a custom `m_yaw`/yaw for CS2 or any game not in the presets
+
+### PSA calculator
+- **Perfect Sensitivity Approximation** — a guided 7-round A/B test to converge on your ideal sensitivity
+
+### Nades DB (accounts + backend)
+- **Community line-ups** — browse grenade throws with a 2D throw visualizer, videos, and photos
+- **Submit your own** — registered users add nades (map + throw/landing points + media)
+- **Admin moderation** — submissions and media are reviewed before going public; roles are `user`/`admin`/`owner`
 
 ## Quick start
+
+Frontend (repo root):
 
 ```bash
 npm install
@@ -24,6 +34,17 @@ npm run dev
 ```
 
 Open the local URL Vite prints (usually `http://localhost:5173`).
+
+Backend API (`server/`, needed for the Nades DB + accounts):
+
+```bash
+cd server
+cp .env.example .env   # then fill in your MySQL details
+npm install
+npm run dev            # http://localhost:3001
+```
+
+The Vite dev server proxies `/api` and `/uploads` to the backend, and the API auto-creates its MySQL tables on first start.
 
 ## Build
 
