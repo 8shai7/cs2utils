@@ -102,6 +102,22 @@ The server serves the frontend from `server/public` (or `../dist`, or
 `FRONTEND_DIR` if set). Rebuild with `npm run build:server` and re-upload
 `server/public` whenever the frontend changes.
 
+#### Deploy straight from GitHub (no build step on the host)
+
+The built frontend is committed at **`server/public`**, so the repo is
+deploy-ready — point a host at it and just install + start the backend:
+
+1. Create a **Node.js application** (Hostinger: hPanel → Advanced → *Setup
+   Node.js App*) and connect this GitHub repo (branch `main`).
+2. **Application root:** `server` · **Startup file:** `src/index.js`
+3. Run **npm install**, add `.env` (DB creds, a strong `JWT_SECRET`, SMTP…),
+   then **Start/Restart**.
+4. Point the app at your domain. It serves the site **and** `/api` from one
+   origin — `https://your-domain/api/health` should return `{"ok":true}`.
+
+When you change the frontend, run `npm run build:server` and commit the updated
+`server/public` (its filenames are content-hashed, so old assets are replaced).
+
 ### Static frontend + API on a subdomain (keep your static host)
 
 If the main domain stays a static site (e.g. `public_html` on Hostinger), host the
