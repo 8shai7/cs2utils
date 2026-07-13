@@ -160,7 +160,7 @@ function mediaEmbed(m) {
 
 /* ---------------- views ---------------- */
 
-function nadeCardHtml(nade, { showStatus = false } = {}) {
+function nadeCardHtml(nade, { showStatus = false, showTryInGame = false } = {}) {
   const t = typeInfo(nade.type);
   const media = (nade.media || []).filter((m) => (showStatus ? true : m.status === 'approved'));
   const mediaHtml = media.length
@@ -173,6 +173,12 @@ function nadeCardHtml(nade, { showStatus = false } = {}) {
         )
         .join('')}</div>`
     : `<p class="hint">No approved media yet — a 2D throw preview is shown above.</p>`;
+
+  const tryBtn = showTryInGame
+    ? `<div class="nade-card-actions">
+         <button class="btn" type="button" data-try-nades="${nade.id}">Try in game</button>
+       </div>`
+    : '';
 
   return `
     <article class="nade-card">
@@ -192,15 +198,17 @@ function nadeCardHtml(nade, { showStatus = false } = {}) {
       ${nade.description ? `<p class="nade-desc">${esc(nade.description)}</p>` : ''}
       ${mediaHtml}
       <p class="nade-foot">by ${esc(nade.authorName)} · ${fmtDate(nade.createdAt)}</p>
+      ${tryBtn}
     </article>`;
 }
 
 function browseHtml() {
   const cards = browseData.length
-    ? browseData.map((n) => nadeCardHtml(n)).join('')
+    ? browseData.map((n) => nadeCardHtml(n, { showTryInGame: true })).join('')
     : `<p class="hint">No approved nades yet${
         session ? ' — be the first to add one!' : ' — log in and add the nades you found.'
       }</p>`;
+  const sameMap = browseFilter.map && browseData.length > 0;
   return `
     <div class="nades-filters">
       <label class="field">
@@ -211,6 +219,16 @@ function browseHtml() {
         <span>Type</span>
         <select id="filter-type"><option value="">All types</option>${optionList(NADE_TYPES, browseFilter.type)}</select>
       </label>
+      ${
+        sameMap
+          ? `<div class="field browse-try-field">
+               <span>&nbsp;</span>
+               <button class="btn primary" type="button" id="browse-try-map">Try ${esc(
+                 mapName(browseFilter.map),
+               )} in game (${browseData.length})</button>
+             </div>`
+          : ''
+      }
     </div>
     <div class="nade-grid">${cards}</div>`;
 }
@@ -367,31 +385,46 @@ function mineHtml() {
 function reviewHtml() {
   if (!isAdmin(session)) return `<p class="hint">Admins only.</p>`;
   if (!reviewData.length) return `<p class="hint">Nothing pending review. Nice and clean.</p>`;
-  return `<div class="nade-grid">${reviewData
-    .map((n) => {
-      const pendingMedia = (n.media || []).filter((m) => m.status === 'pending');
-      const mediaReview = pendingMedia.length
-        ? `<div class="review-media">${pendingMedia
-            .map(
-              (m) => `<div class="review-media-item">${mediaEmbed(m)}
-                <div class="actions">
-                  <button class="btn" data-approve-media="${m.id}">Approve media</button>
-                  <button class="btn ghost" data-reject-media="${m.id}">Reject</button>
-                </div></div>`,
-            )
-            .join('')}</div>`
-        : '';
-      const nadeButtons =
-        n.status === 'pending'
-          ? `<div class="review-actions">
-               <input type="text" class="review-note" data-nade="${n.id}" placeholder="Optional note to the author" />
-               <button class="btn primary" data-approve-nade="${n.id}">Approve nade</button>
-               <button class="btn ghost" data-reject-nade="${n.id}">Reject</button>
-             </div>`
-          : `<p class="hint">Nade already ${esc(n.status)} — reviewing added media only.</p>`;
-      return `<div class="nade-mine">${nadeCardHtml(n, { showStatus: true })}${mediaReview}${nadeButtons}</div>`;
-    })
-    .join('')}</div>`;
+  const pendingNades = reviewData.filter((n) => n.status === 'pending');
+  return `
+    <div class="review-bulk-bar">
+      <label class="review-select-all">
+        <input type="checkbox" id="review-select-all" />
+        <span>Select all pending nades (${pendingNades.length})</span>
+      </label>
+      <input type="text" id="review-bulk-note" placeholder="Optional note for bulk decision" />
+      <button class="btn primary" type="button" id="review-bulk-approve" disabled>Approve selected</button>
+      <button class="btn ghost" type="button" id="review-bulk-reject" disabled>Reject selected</button>
+    </div>
+    <div class="nade-grid">${reviewData
+      .map((n) => {
+        const pendingMedia = (n.media || []).filter((m) => m.status === 'pending');
+        const mediaReview = pendingMedia.length
+          ? `<div class="review-media">${pendingMedia
+              .map(
+                (m) => `<div class="review-media-item">${mediaEmbed(m)}
+                  <div class="actions">
+                    <button class="btn" data-approve-media="${m.id}">Approve media</button>
+                    <button class="btn ghost" data-reject-media="${m.id}">Reject</button>
+                  </div></div>`,
+              )
+              .join('')}</div>`
+          : '';
+        const nadeButtons =
+          n.status === 'pending'
+            ? `<div class="review-actions">
+                 <label class="review-check">
+                   <input type="checkbox" class="review-nade-check" value="${n.id}" />
+                   <span>Select</span>
+                 </label>
+                 <input type="text" class="review-note" data-nade="${n.id}" placeholder="Optional note to the author" />
+                 <button class="btn primary" data-approve-nade="${n.id}">Approve nade</button>
+                 <button class="btn ghost" data-reject-nade="${n.id}">Reject</button>
+               </div>`
+            : `<p class="hint">Nade already ${esc(n.status)} — reviewing added media only.</p>`;
+        return `<div class="nade-mine">${nadeCardHtml(n, { showStatus: true })}${mediaReview}${nadeButtons}</div>`;
+      })
+      .join('')}</div>`;
 }
 
 function banInfo(u) {
@@ -533,6 +566,12 @@ function wire() {
     browseFilter.type = e.target.value;
     loadView('browse');
   });
+  tool.querySelector('#browse-try-map')?.addEventListener('click', () => {
+    onTryNades(browseData.map((n) => n.id));
+  });
+  tool.querySelectorAll('[data-try-nades]').forEach((b) =>
+    b.addEventListener('click', () => onTryNades([Number(b.dataset.tryNades)])),
+  );
 
   // Add form
   const addCanvas = tool.querySelector('#nade-add-canvas');
@@ -604,7 +643,7 @@ function wire() {
     if (!tryGamePack) return;
     downloadPracticePack(tryGamePack);
     const st = tool.querySelector('[data-try-game-status]');
-    if (st) st.textContent = 'Downloaded guide + CFG. Place them under game/csgo, then click Install & open CS2.';
+    if (st) st.textContent = 'Downloaded guide + CFG. Copy them into game/csgo (see steps), then click Download & open CS2.';
   });
   tool.querySelector('[data-try-game-go]')?.addEventListener('click', onTryGameGo);
 
@@ -632,6 +671,24 @@ function wire() {
   tool.querySelectorAll('[data-reject-media]').forEach((b) =>
     b.addEventListener('click', () => onReviewMedia(b.dataset.rejectMedia, 'rejected')),
   );
+
+  const selectAll = tool.querySelector('#review-select-all');
+  const bulkApprove = tool.querySelector('#review-bulk-approve');
+  const bulkReject = tool.querySelector('#review-bulk-reject');
+  const syncBulkButtons = () => {
+    const n = tool.querySelectorAll('.review-nade-check:checked').length;
+    if (bulkApprove) bulkApprove.disabled = n === 0;
+    if (bulkReject) bulkReject.disabled = n === 0;
+  };
+  selectAll?.addEventListener('change', () => {
+    tool.querySelectorAll('.review-nade-check').forEach((c) => {
+      c.checked = selectAll.checked;
+    });
+    syncBulkButtons();
+  });
+  tool.querySelectorAll('.review-nade-check').forEach((c) => c.addEventListener('change', syncBulkButtons));
+  bulkApprove?.addEventListener('click', () => onBulkReview('approved'));
+  bulkReject?.addEventListener('click', () => onBulkReview('rejected'));
 
   // Users
   tool.querySelectorAll('[data-role-user]').forEach((b) =>
@@ -780,6 +837,23 @@ async function onTryImport(importId) {
   }
 }
 
+async function onTryNades(nadeIds) {
+  const ids = (nadeIds || []).map(Number).filter((id) => Number.isFinite(id) && id > 0);
+  if (!ids.length) {
+    setStatus('No nades to open in CS2.', 'error');
+    return;
+  }
+  try {
+    setStatus('Preparing CS2 practice pack…', '');
+    const data = await api.nades.practicePackFromNades(ids);
+    tryGamePack = data.pack;
+    render();
+    setStatus('Ready — install into CS2 and open a private practice server.', 'ok');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+}
+
 async function onTryGameGo() {
   if (!tryGamePack) return;
   const st = tool.querySelector('[data-try-game-status]');
@@ -826,6 +900,22 @@ async function onReviewNade(nadeId, decision) {
     await api.admin.reviewNade(nadeId, decision, note);
     await loadView('review');
     setStatus(`Nade ${decision}.`, 'ok');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+}
+
+async function onBulkReview(decision) {
+  const ids = [...tool.querySelectorAll('.review-nade-check:checked')].map((c) => Number(c.value));
+  if (!ids.length) {
+    setStatus('Select at least one pending nade.', 'error');
+    return;
+  }
+  const note = tool.querySelector('#review-bulk-note')?.value || '';
+  try {
+    const result = await api.admin.reviewNadesBulk(ids, decision, note);
+    await loadView('review');
+    setStatus(`${decision === 'approved' ? 'Approved' : 'Rejected'} ${result.updated} nade${result.updated === 1 ? '' : 's'}.`, 'ok');
   } catch (err) {
     setStatus(err.message, 'error');
   }

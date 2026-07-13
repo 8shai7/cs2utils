@@ -258,7 +258,10 @@ export const api = {
       return request('POST', '/nades/map-guide/practice-pack', { text, map, importId }, { auth: true });
     },
     async practicePackFromImport(importId) {
-      return request('GET', `/nades/map-guide/imports/${importId}/practice-pack`, undefined, { auth: true });
+      return request('GET', `/nades/map-guide/imports/${importId}/practice-pack`, undefined, { auth: !!getToken() });
+    },
+    async practicePackFromNades(nadeIds) {
+      return request('POST', '/nades/map-guide/practice-pack-from-nades', { nadeIds }, { auth: !!getToken() });
     },
   },
   commands: {
@@ -335,8 +338,14 @@ export const api = {
     async reviewNade(id, decision, note = '') {
       return request('POST', `/admin/nades/${id}/review`, { decision, note }, { auth: true });
     },
+    async reviewNadesBulk(ids, decision, note = '') {
+      return request('POST', '/admin/nades/review-bulk', { ids, decision, note }, { auth: true });
+    },
     async reviewMedia(mediaId, decision) {
       return request('POST', `/admin/media/${mediaId}/review`, { decision }, { auth: true });
+    },
+    async reviewMediaBulk(ids, decision) {
+      return request('POST', '/admin/media/review-bulk', { ids, decision }, { auth: true });
     },
     async users() {
       const data = await request('GET', '/admin/users', undefined, { auth: true });

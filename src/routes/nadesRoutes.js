@@ -4,7 +4,7 @@ import { requireAuth, optionalAuth, isAdminRole } from '../auth.js';
 import { asyncHandler, ApiError, clamp01 } from '../util.js';
 import { MAP_IDS, TYPE_IDS, TECHNIQUE_IDS, SIDE_IDS, detectMediaKind } from '../meta.js';
 import { parseMapGuide, MAX_IMPORT } from '../parseMapGuide.js';
-import { buildPracticePack } from '../mapGuidePractice.js';
+import { buildPracticePack, buildPracticePackFromNades } from '../mapGuidePractice.js';
 
 export const nadesRoutes = Router();
 
@@ -225,16 +225,22 @@ nadesRoutes.post(
   }),
 );
 
-// Practice pack for a previously imported map guide (author only).
+// Practice pack for a previously imported map guide.
+// Author/admin always; anyone if at least one linked nade is approved (Browse → Try in game).
 nadesRoutes.get(
   '/map-guide/imports/:id/practice-pack',
-  requireAuth,
+  optionalAuth,
   asyncHandler(async (req, res) => {
     const [rows] = await pool.query('SELECT * FROM map_guide_imports WHERE id = ?', [req.params.id]);
     if (!rows.length) throw new ApiError(404, 'Map guide import not found.');
     const row = rows[0];
-    if (row.author_id !== req.user.id && !isAdminRole(req.user.role)) {
-      throw new ApiError(403, 'You can only open your own imported guides in CS2.');
+    const isOwner = req.user && (row.author_id === req.user.id || isAdminRole(req.user.role));
+    if (!isOwner) {
+      const [[{ count }]] = await pool.query(
+        "SELECT COUNT(*) AS count FROM nades WHERE guide_import_id = ? AND status = 'approved'",
+        [row.id],
+      );
+      if (!Number(count)) throw new ApiError(403, 'This guide is not public yet.');
     }
     try {
       res.json({
@@ -244,6 +250,68 @@ nadesRoutes.get(
           importId: row.id,
         }),
         fileName: row.file_name,
+      });
+    } catch (err) {
+      throw new ApiError(400, err.message || 'Could not build practice pack.');
+    }
+  }),
+);
+
+// Build a practice pack from approved nades (Browse → Try in game).
+nadesRoutes.post(
+  '/map-guide/practice-pack-from-nades',
+  optionalAuth,
+  asyncHandler(async (req, res) => {
+    const ids = Array.isArray(req.body?.nadeIds)
+      ? req.body.nadeIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+      : [];
+    if (!ids.length) throw new ApiError(400, 'Select at least one nade.');
+    if (ids.length > 80) throw new ApiError(400, 'Too many nades (max 80).');
+
+    const placeholders = ids.map(() => '?').join(',');
+    const [rows] = await pool.query(
+      `SELECT n.*, u.username AS author_name FROM nades n
+       JOIN users u ON u.id = n.author_id
+       WHERE n.id IN (${placeholders}) AND n.status = 'approved'`,
+      ids,
+    );
+    if (!rows.length) throw new ApiError(404, 'No approved nades found.');
+
+    const mapId = rows[0].map;
+    if (!rows.every((r) => r.map === mapId)) {
+      throw new ApiError(400, 'All nades must be on the same map to open together in CS2.');
+    }
+
+    // Prefer the original imported guide text when every nade shares one import.
+    const importIds = [...new Set(rows.map((r) => r.guide_import_id).filter(Boolean))];
+    if (importIds.length === 1 && rows.every((r) => r.guide_import_id === importIds[0])) {
+      const [guides] = await pool.query('SELECT * FROM map_guide_imports WHERE id = ?', [importIds[0]]);
+      if (guides.length) {
+        return res.json({
+          pack: buildPracticePack({
+            mapId: guides[0].map,
+            guideText: guides[0].guide_text,
+            importId: guides[0].id,
+          }),
+          source: 'import',
+        });
+      }
+    }
+
+    const nades = rows.map((r) => ({
+      title: r.title,
+      description: r.description || '',
+      type: r.type,
+      technique: r.technique,
+      start: { x: r.start_x, y: r.start_y },
+      end: { x: r.end_x, y: r.end_y },
+    }));
+    try {
+      res.json({
+        pack: buildPracticePackFromNades(mapId, nades, {
+          loadName: `aimkit_${mapId}_browse_${ids[0]}`,
+        }),
+        source: 'nades',
       });
     } catch (err) {
       throw new ApiError(400, err.message || 'Could not build practice pack.');

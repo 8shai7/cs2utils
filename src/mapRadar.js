@@ -43,3 +43,14 @@ export function worldToRadar(mapId, worldX, worldY) {
     y: Math.max(0, Math.min(1, y)),
   };
 }
+
+/** Inverse of worldToRadar (Z defaults to 0 — fine for practice markers). */
+export function radarToWorld(mapId, normX, normY, z = 0) {
+  const meta = MAP_RADAR[mapId];
+  if (!meta) return null;
+  return {
+    x: meta.posX + Number(normX) * RADAR_SIZE * meta.scale,
+    y: meta.posY - Number(normY) * RADAR_SIZE * meta.scale,
+    z: Number(z) || 0,
+  };
+}

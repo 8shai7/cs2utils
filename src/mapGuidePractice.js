@@ -1,5 +1,8 @@
 // Helpers for "Try in game": practice CFG + Steam launch URL for a CS2 map guide.
 
+import { radarToWorld } from './mapRadar.js';
+import { randomUUID } from 'node:crypto';
+
 const DE_MAP = {
   mirage: 'de_mirage',
   dust2: 'de_dust2',
@@ -66,13 +69,161 @@ export function practiceFilePaths(loadName, cfgBaseName = 'aimkit_practice') {
   };
 }
 
-export function buildPracticePack({ mapId, guideText, importId = null }) {
+function kv3Escape(str) {
+  return String(str || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\r\n/g, '\\n')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\n');
+}
+
+function mapGrenadeTypeOut(type) {
+  const t = String(type || 'smoke').toLowerCase();
+  if (t === 'molotov') return 'molotov';
+  if (['smoke', 'flash', 'he', 'decoy', 'incendiary'].includes(t)) return t;
+  return 'smoke';
+}
+
+/**
+ * Rebuild a CS2 annotation KV3 file from AimKit nade drafts (radar 0..1 → world).
+ * Approximate (Z lost) but enough for Try in game markers.
+ */
+export function buildGuideTextFromNades(mapId, nades) {
+  const de = deMapName(mapId);
+  if (!de) throw new Error('Unknown map.');
+  const list = Array.isArray(nades) ? nades : [];
+  if (!list.length) throw new Error('No nades to open in CS2.');
+
+  const lines = [
+    '<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->',
+    '{',
+    `\tMapName = "${de}"`,
+    '\tScreenText =',
+    '\t{',
+    '\t}',
+  ];
+
+  let nodeIdx = 0;
+  for (const nade of list) {
+    if (!nade?.start || !nade?.end) continue;
+    const start = radarToWorld(mapId, nade.start.x, nade.start.y, 0);
+    const end = radarToWorld(mapId, nade.end.x, nade.end.y, 0);
+    if (!start || !end) continue;
+
+    const mainId = randomUUID();
+    const aimId = randomUUID();
+    const destId = randomUUID();
+    const title = kv3Escape(nade.title || `AimKit lineup ${nodeIdx + 1}`);
+    const desc = kv3Escape(nade.description || '');
+    const jump = nade.technique === 'jumpthrow' || nade.technique === 'jump' || nade.technique === 'runjump';
+    const gType = mapGrenadeTypeOut(nade.type);
+
+    const emitNode = (key, body) => {
+      lines.push(`\t${key} =`);
+      lines.push('\t{');
+      for (const line of body) lines.push(`\t\t${line}`);
+      lines.push('\t}');
+    };
+
+    emitNode(`MapAnnotationNode${nodeIdx++}`, [
+      'Enabled = true',
+      'Type = "grenade"',
+      `Id = "${mainId}"`,
+      'SubType = "main"',
+      `Position = [ ${start.x.toFixed(6)}, ${start.y.toFixed(6)}, ${start.z.toFixed(6)} ]`,
+      'Angles = [ 0.0, 0.0, 0.0 ]',
+      'VisiblePfx = true',
+      'TextFacePlayer = true',
+      'Title =',
+      '{',
+      `\tText = "${title}"`,
+      '\tFontSize = 125',
+      '\tFadeInDist = 600.0',
+      '\tFadeOutDist = 40.0',
+      '}',
+      'Desc =',
+      '{',
+      `\tText = "${desc}"`,
+      '\tFontSize = 75',
+      '\tFadeInDist = 300.0',
+      '\tFadeOutDist = 40.0',
+      '}',
+      `JumpThrow = ${jump ? 'true' : 'false'}`,
+      `GrenadeType = "${gType}"`,
+    ]);
+
+    const aim = {
+      x: start.x + (end.x - start.x) * 0.15,
+      y: start.y + (end.y - start.y) * 0.15,
+      z: start.z + 80,
+    };
+    emitNode(`MapAnnotationNode${nodeIdx++}`, [
+      'Enabled = true',
+      'Type = "grenade"',
+      `Id = "${aimId}"`,
+      'SubType = "aim_target"',
+      `Position = [ ${aim.x.toFixed(6)}, ${aim.y.toFixed(6)}, ${aim.z.toFixed(6)} ]`,
+      'Angles = [ 0.0, 0.0, 0.0 ]',
+      'VisiblePfx = true',
+      'TextFacePlayer = false',
+      'Title =',
+      '{',
+      `\tText = "${title}"`,
+      '\tFontSize = 125',
+      '\tFadeInDist = 50.0',
+      '\tFadeOutDist = -1.0',
+      '}',
+      'Desc =',
+      '{',
+      `\tText = "${desc}"`,
+      '\tFontSize = 75',
+      '\tFadeInDist = 50.0',
+      '\tFadeOutDist = -1.0',
+      '}',
+      `MasterNodeId = "${mainId}"`,
+    ]);
+
+    emitNode(`MapAnnotationNode${nodeIdx++}`, [
+      'Enabled = true',
+      'Type = "grenade"',
+      `Id = "${destId}"`,
+      'SubType = "destination"',
+      `Position = [ ${end.x.toFixed(6)}, ${end.y.toFixed(6)}, ${end.z.toFixed(6)} ]`,
+      'Angles = [ 0.0, 0.0, 0.0 ]',
+      'VisiblePfx = true',
+      'TextFacePlayer = false',
+      'Title =',
+      '{',
+      '\tText = ""',
+      '\tFontSize = 75',
+      '\tFadeInDist = 50.0',
+      '\tFadeOutDist = -1.0',
+      '}',
+      'Desc =',
+      '{',
+      '\tText = ""',
+      '\tFontSize = 75',
+      '\tFadeInDist = 50.0',
+      '\tFadeOutDist = -1.0',
+      '}',
+      `MasterNodeId = "${mainId}"`,
+      'DistanceThreshold = 80.0',
+    ]);
+  }
+
+  if (nodeIdx === 0) throw new Error('No valid nade positions to open in CS2.');
+  lines.push('}');
+  return `${lines.join('\n')}\n`;
+}
+
+export function buildPracticePack({ mapId, guideText, importId = null, loadName: loadNameOverride = null }) {
   const de = deMapName(mapId);
   if (!de) throw new Error('Unknown map for practice launch.');
   const text = String(guideText || '').trim();
   if (!text) throw new Error('No map guide text to open in CS2.');
 
-  const loadName = guideLoadName(mapId, importId);
+  const loadName = loadNameOverride || guideLoadName(mapId, importId);
   const cfgBaseName = 'aimkit_practice';
   const paths = practiceFilePaths(loadName, cfgBaseName);
   const cfgText = buildPracticeCfg({ loadName });
@@ -93,4 +244,13 @@ export function buildPracticePack({ mapId, guideText, importId = null }) {
       'Click Open CS2 (private practice server loads the map + annotations).',
     ],
   };
+}
+
+export function buildPracticePackFromNades(mapId, nades, { loadName } = {}) {
+  const guideText = buildGuideTextFromNades(mapId, nades);
+  return buildPracticePack({
+    mapId,
+    guideText,
+    loadName: loadName || guideLoadName(mapId, `browse_${nades.length}`),
+  });
 }

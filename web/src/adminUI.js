@@ -80,11 +80,21 @@ function overviewHtml() {
 function nadesHtml() {
   const nades = cache.nades || [];
   if (!nades.length) return `<p class="hint">Nothing pending. All nades are reviewed.</p>`;
-  return nades
-    .map((n) => {
-      const media = (n.media || [])
-        .map(
-          (m) => `
+  const pending = nades.filter((n) => n.status === 'pending');
+  return `
+    <div class="review-bulk-bar">
+      <label class="review-select-all">
+        <input type="checkbox" id="admin-nade-select-all" />
+        <span>Select all pending (${pending.length})</span>
+      </label>
+      <button class="btn btn-sm primary" type="button" id="admin-nade-bulk-approve" disabled>Approve selected</button>
+      <button class="btn btn-sm ghost" type="button" id="admin-nade-bulk-reject" disabled>Reject selected</button>
+    </div>
+    ${nades
+      .map((n) => {
+        const media = (n.media || [])
+          .map(
+            (m) => `
         <div class="admin-media">
           <a href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">${esc(m.kind || 'media')}</a>
           <span class="nade-badge ${esc(m.status)}">${esc(m.status)}</span>
@@ -95,11 +105,16 @@ function nadesHtml() {
               : ''
           }
         </div>`,
-        )
-        .join('');
-      return `
+          )
+          .join('');
+        return `
         <article class="panel admin-item">
           <div class="admin-item-head">
+            ${
+              n.status === 'pending'
+                ? `<label class="review-check"><input type="checkbox" class="admin-nade-check" value="${n.id}" /><span></span></label>`
+                : ''
+            }
             <strong>${esc(n.title || 'Untitled')}</strong>
             <span class="nade-badge ${esc(n.status)}">${esc(n.status)}</span>
           </div>
@@ -112,8 +127,8 @@ function nadesHtml() {
             <button class="btn btn-sm ghost" data-nade-reject="${n.id}">Reject nade</button>
           </div>
         </article>`;
-    })
-    .join('');
+      })
+      .join('')}`;
 }
 
 function commentsHtml() {
@@ -348,6 +363,33 @@ function wire() {
   tool.querySelectorAll('[data-media-reject]').forEach((b) =>
     b.addEventListener('click', () => act(async () => { await api.admin.reviewMedia(b.dataset.mediaReject, 'rejected'); await reload(); }, 'Media rejected.')),
   );
+
+  const adminSelectAll = tool.querySelector('#admin-nade-select-all');
+  const adminBulkApprove = tool.querySelector('#admin-nade-bulk-approve');
+  const adminBulkReject = tool.querySelector('#admin-nade-bulk-reject');
+  const syncAdminBulk = () => {
+    const n = tool.querySelectorAll('.admin-nade-check:checked').length;
+    if (adminBulkApprove) adminBulkApprove.disabled = n === 0;
+    if (adminBulkReject) adminBulkReject.disabled = n === 0;
+  };
+  adminSelectAll?.addEventListener('change', () => {
+    tool.querySelectorAll('.admin-nade-check').forEach((c) => {
+      c.checked = adminSelectAll.checked;
+    });
+    syncAdminBulk();
+  });
+  tool.querySelectorAll('.admin-nade-check').forEach((c) => c.addEventListener('change', syncAdminBulk));
+  const bulkNades = async (decision) => {
+    const ids = [...tool.querySelectorAll('.admin-nade-check:checked')].map((c) => Number(c.value));
+    if (!ids.length) return;
+    await act(async () => {
+      const result = await api.admin.reviewNadesBulk(ids, decision);
+      await reload();
+      setStatus(`${decision === 'approved' ? 'Approved' : 'Rejected'} ${result.updated} nade${result.updated === 1 ? '' : 's'}.`, 'ok');
+    });
+  };
+  adminBulkApprove?.addEventListener('click', () => bulkNades('approved'));
+  adminBulkReject?.addEventListener('click', () => bulkNades('rejected'));
 
   // Comments
   tool.querySelectorAll('[data-comment-approve]').forEach((b) =>
