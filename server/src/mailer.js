@@ -23,6 +23,15 @@ function getTransport() {
   return transporter;
 }
 
+export async function sendPasswordResetEmail({ email, link }) {
+  return getTransport().sendMail({
+    from: config.mailFrom,
+    to: email,
+    subject: 'Reset your AimKit password',
+    text: `We received a request to reset your AimKit password.\n\nUse this link (valid for 1 hour):\n${link}\n\nIf you didn't request this, you can safely ignore this email.`,
+  });
+}
+
 export async function sendContactEmail({ name, email, subject, message }) {
   const info = await getTransport().sendMail({
     from: config.mailFrom,

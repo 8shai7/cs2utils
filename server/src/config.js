@@ -12,10 +12,15 @@ export const config = {
     database: process.env.DB_NAME || 'cs2utils',
   },
   jwtSecret: process.env.JWT_SECRET || 'dev-insecure-secret-change-me',
+  // Public app URL used to build password-reset links + Steam redirect back.
+  appUrl: process.env.APP_URL || 'http://localhost:5173',
+  // Public API base URL (used for the Steam OpenID return_to / realm).
+  apiUrl: process.env.API_URL || 'http://localhost:3001',
   ownerEmail: (process.env.OWNER_EMAIL || 'shaital121@gmail.com').trim().toLowerCase(),
   corsOrigin: process.env.CORS_ORIGIN || '*',
   uploadDir: process.env.UPLOAD_DIR || 'uploads',
   imgbbApiKey: process.env.IMGBB_API_KEY || '',
+  steamApiKey: process.env.STEAM_API_KEY || '',
   // Contact form → email. On Hostinger set SMTP_* to your mailbox (e.g.
   // smtp.hostinger.com). Without SMTP configured, messages are still stored in DB.
   contactTo: process.env.CONTACT_TO || 'service@aimkit.net',
@@ -49,6 +54,8 @@ export const config = {
   proSettingsListUrl: process.env.PRO_SETTINGS_LIST_URL || 'https://prosettings.net/lists/cs2/',
   hltvPlayersUrl: process.env.HLTV_PLAYERS_URL || 'https://www.hltv.org/stats/players',
   steamAppId: process.env.STEAM_APPID || '730',
+  // Optional Steam Web API key — used to fetch persona name + avatar on Steam login.
+  steamWebApiKey: process.env.STEAM_WEB_API_KEY || '',
   cs2VersionUrl:
     process.env.CS2_VERSION_URL ||
     `https://api.steampowered.com/ISteamApps/UpToDateCheck/v1/?appid=${process.env.STEAM_APPID || '730'}&version=1`,

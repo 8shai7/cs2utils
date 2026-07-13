@@ -47,6 +47,11 @@ export function publicUser(row) {
     createdAt: row.created_at,
     bannedUntil: row.banned_until || null,
     avatarUrl: row.avatar_url || null,
+    steamId: row.steam_id || null,
+    steamPersona: row.steam_persona || null,
+    steamAvatar: row.steam_avatar || null,
+    hasPassword: Boolean(row.password_hash),
+    hasEmail: Boolean(row.email),
   };
 }
 
