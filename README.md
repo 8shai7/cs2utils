@@ -71,7 +71,36 @@ Static files are written to `dist/` and can be deployed to GitHub Pages, Netlify
 
 ## Deploy
 
-Push to [`8shai7/cs2utils`](https://github.com/8shai7/cs2utils) and enable GitHub Pages under **Settings → Pages → GitHub Actions**.
+The crosshair converter/editor and the sensitivity/PSA tools are pure frontend and
+work on any static host. **Everything else (accounts, Nades DB, Commands, Configs,
+Highlights, Pro settings, Contact) needs the Node API**, so those pages will show
+`/api/... 404` on a static-only deploy (e.g. GitHub Pages).
+
+### Full deploy (one server — recommended, e.g. Hostinger)
+
+Run the Node server; it serves the built frontend **and** the API from the same
+origin, so the browser's `/api` calls resolve with no proxy or CORS setup:
+
+```bash
+# 1. build the frontend → dist/
+npm install && npm run build
+
+# 2. configure + start the backend (serves dist/ + /api)
+cd server
+cp .env.example .env   # fill in DB creds, JWT_SECRET, etc.
+npm install && npm start
+```
+
+Open the server's URL (default `http://localhost:3001`). The server auto-serves
+`../dist`; override the location with `FRONTEND_DIR=/path/to/dist` if needed.
+If the frontend is hosted separately instead, build it with
+`VITE_API_URL=https://your-api-host/api` so it points at the backend.
+
+### Static frontend only (GitHub Pages)
+
+Push to [`8shai7/cs2utils`](https://github.com/8shai7/cs2utils) and enable GitHub
+Pages under **Settings → Pages → GitHub Actions**. Backend-dependent features
+won't work unless you also host the API and set `VITE_API_URL` at build time.
 
 ## License
 

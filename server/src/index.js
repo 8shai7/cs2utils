@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'node:path';
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
 import { initDb } from './db.js';
 import { authRoutes } from './routes/authRoutes.js';
@@ -41,6 +42,29 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/uploads', uploadsRoutes);
+
+// Unknown /api routes → JSON 404 (so the SPA fallback below never turns an API
+// miss into an HTML page).
+app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found.' }));
+
+// In production, serve the built frontend from the same origin so that the
+// browser's `/api` requests hit this server (no separate host / proxy needed).
+// Build it with `npm run build` (repo root) → `dist/`, or set FRONTEND_DIR.
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const frontendDir = process.env.FRONTEND_DIR
+  ? path.resolve(process.env.FRONTEND_DIR)
+  : path.resolve(moduleDir, '../../dist');
+if (fs.existsSync(path.join(frontendDir, 'index.html'))) {
+  app.use(express.static(frontendDir));
+  // SPA fallback: any non-API GET returns index.html.
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' || req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) return next();
+    res.sendFile(path.join(frontendDir, 'index.html'), (err) => err && next(err));
+  });
+  console.log('[server] serving frontend from', frontendDir);
+} else {
+  console.log('[server] no frontend build at', frontendDir, '— serving API only');
+}
 
 // Centralized JSON error handler.
 // eslint-disable-next-line no-unused-vars
