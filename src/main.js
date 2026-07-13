@@ -18,6 +18,7 @@ import {
   PSA_ROUNDS,
 } from './psa.js';
 import { initNadesTool } from './nadesUI.js';
+import { initCommandsTool } from './commandsUI.js';
 import { initHeaderAuth } from './headerAuth.js';
 import { renderCrosshairPreview } from './preview.js';
 import {
@@ -68,6 +69,10 @@ app.innerHTML = `
         <button class="tool-tab" data-tool="nades" role="tab" aria-selected="false">
           <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
           <span>Nades DB</span>
+        </button>
+        <button class="tool-tab" data-tool="commands" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3"/><line x1="13" y1="15" x2="17" y2="15"/></svg>
+          <span>Commands</span>
         </button>
       </nav>
       <p class="tool-desc" id="tool-desc"></p>
@@ -348,6 +353,8 @@ app.innerHTML = `
 
     <main id="nades-tool" class="tool-view"></main>
 
+    <main id="commands-tool" class="tool-view"></main>
+
     <footer class="footer">
       <section class="donate">
         <p class="donate-label">Found AimKit useful? Support the project:</p>
@@ -610,6 +617,8 @@ const TOOL_DESCRIPTIONS = {
   psa: 'Dial in your ideal sensitivity with a guided 7-round A/B test (Perfect Sensitivity Approximation).',
   nades:
     'Browse community grenade line-ups, or sign in to submit your own with a 2D throw guide, videos and photos.',
+  commands:
+    'Copy up-to-date CS2 launch options and console commands, recommend the ones that help, and share tips in the comments.',
 };
 
 const toolDesc = document.querySelector('#tool-desc');
@@ -968,3 +977,4 @@ loadCs2ValorantExample();
 
 initHeaderAuth();
 initNadesTool();
+initCommandsTool();

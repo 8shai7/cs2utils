@@ -122,10 +122,41 @@ export const api = {
       return request('DELETE', `/nades/${nadeId}`, undefined, { auth: true });
     },
   },
+  commands: {
+    async catalog() {
+      return request('GET', '/commands/catalog');
+    },
+    async social() {
+      return request('GET', '/commands/social', undefined, { auth: true });
+    },
+    async recommend(key) {
+      return request('POST', `/commands/${key}/recommend`, {}, { auth: true });
+    },
+    async addComment(key, body) {
+      return request('POST', `/commands/${key}/comments`, { body }, { auth: true });
+    },
+  },
   admin: {
     async pending() {
       const data = await request('GET', '/admin/nades/pending', undefined, { auth: true });
       return data.nades;
+    },
+    async pendingComments() {
+      const data = await request('GET', '/admin/comments/pending', undefined, { auth: true });
+      return data.comments;
+    },
+    async pendingCommentsCount() {
+      const data = await request('GET', '/admin/comments/pending/count', undefined, { auth: true });
+      return data.count;
+    },
+    async reviewComment(id, decision) {
+      return request('POST', `/admin/comments/${id}/review`, { decision }, { auth: true });
+    },
+    async syncCommands() {
+      return request('POST', '/admin/commands/sync', {}, { auth: true });
+    },
+    async checkCommandsCs2() {
+      return request('POST', '/admin/commands/check-cs2', {}, { auth: true });
     },
     async pendingCount() {
       const data = await request('GET', '/admin/nades/pending/count', undefined, { auth: true });

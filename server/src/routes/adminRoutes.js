@@ -3,10 +3,29 @@ import { pool } from '../db.js';
 import { requireAuth, requireAdmin, publicUser } from '../auth.js';
 import { asyncHandler, ApiError } from '../util.js';
 import { withMedia } from './nadesRoutes.js';
+import { syncFromSource, checkCs2Build } from '../commandsSync.js';
 
 export const adminRoutes = Router();
 
 adminRoutes.use(requireAuth, requireAdmin);
+
+// Manually trigger a command-catalog sync from the configured remote source.
+adminRoutes.post(
+  '/commands/sync',
+  asyncHandler(async (_req, res) => {
+    const result = await syncFromSource({ force: true });
+    res.json(result);
+  }),
+);
+
+// Manually re-check the current CS2 build (and re-sync if it changed).
+adminRoutes.post(
+  '/commands/check-cs2',
+  asyncHandler(async (_req, res) => {
+    const result = await checkCs2Build({});
+    res.json(result);
+  }),
+);
 
 // Nades needing review: pending nades, or approved/rejected nades with pending media.
 adminRoutes.get(
@@ -34,6 +53,45 @@ adminRoutes.get(
       "SELECT COUNT(*) AS mediaCount FROM nade_media WHERE status = 'pending'",
     );
     res.json({ count: Number(nadeCount) + Number(mediaCount) });
+  }),
+);
+
+// --- Command comment moderation ---
+adminRoutes.get(
+  '/comments/pending',
+  asyncHandler(async (_req, res) => {
+    const [rows] = await pool.query(
+      "SELECT id, command_key, username, body, created_at FROM command_comments WHERE status = 'pending' ORDER BY created_at ASC",
+    );
+    res.json({
+      comments: rows.map((c) => ({
+        id: c.id,
+        commandKey: c.command_key,
+        username: c.username,
+        body: c.body,
+        createdAt: c.created_at,
+      })),
+    });
+  }),
+);
+
+adminRoutes.get(
+  '/comments/pending/count',
+  asyncHandler(async (_req, res) => {
+    const [[{ count }]] = await pool.query("SELECT COUNT(*) AS count FROM command_comments WHERE status = 'pending'");
+    res.json({ count: Number(count) });
+  }),
+);
+
+adminRoutes.post(
+  '/comments/:id/review',
+  asyncHandler(async (req, res) => {
+    const decision = req.body?.decision;
+    if (decision !== 'approved' && decision !== 'rejected') throw new ApiError(400, 'Invalid decision.');
+    const [rows] = await pool.query('SELECT id FROM command_comments WHERE id = ?', [req.params.id]);
+    if (!rows.length) throw new ApiError(404, 'Comment not found.');
+    await pool.query('UPDATE command_comments SET status = ? WHERE id = ?', [decision, req.params.id]);
+    res.json({ ok: true });
   }),
 );
 

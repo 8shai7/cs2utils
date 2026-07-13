@@ -8,6 +8,8 @@ import { authRoutes } from './routes/authRoutes.js';
 import { nadesRoutes } from './routes/nadesRoutes.js';
 import { adminRoutes } from './routes/adminRoutes.js';
 import { uploadsRoutes } from './routes/uploadsRoutes.js';
+import { commandsRoutes } from './routes/commandsRoutes.js';
+import { seedIfEmpty, syncFromSource, startCommandsScheduler, startCs2Watcher } from './commandsSync.js';
 
 const app = express();
 
@@ -25,6 +27,7 @@ app.use('/uploads', express.static(uploadDir));
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/nades', nadesRoutes);
+app.use('/api/commands', commandsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/uploads', uploadsRoutes);
 
@@ -37,7 +40,18 @@ app.use((err, _req, res, _next) => {
 });
 
 initDb()
-  .then(() => {
+  .then(async () => {
+    await seedIfEmpty();
+    // Best-effort initial sync (no-op if no source configured); never blocks boot.
+    syncFromSource({})
+      .then((r) => {
+        if (r.synced) console.log(`[server] command catalog synced from source (${r.count} commands)`);
+      })
+      .catch(() => {});
+    startCommandsScheduler();
+    // Watch for CS2 patches and re-sync the catalog whenever the build changes.
+    startCs2Watcher();
+
     app.listen(config.port, () => {
       console.log(`[server] AimKit API listening on http://localhost:${config.port}`);
       console.log(`[server] owner email: ${config.ownerEmail}`);
