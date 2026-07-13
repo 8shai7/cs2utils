@@ -50,11 +50,14 @@ app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found.' }));
 // In production, serve the built frontend from the same origin so that the
 // browser's `/api` requests hit this server (no separate host / proxy needed).
 // Build it with `npm run build` (repo root) → `dist/`, or set FRONTEND_DIR.
-const moduleDir = path.dirname(fileURLToPath(import.meta.url));
-const frontendDir = process.env.FRONTEND_DIR
-  ? path.resolve(process.env.FRONTEND_DIR)
-  : path.resolve(moduleDir, '../../dist');
-if (fs.existsSync(path.join(frontendDir, 'index.html'))) {
+const moduleDir = path.dirname(fileURLToPath(import.meta.url)); // server/src
+const frontendCandidates = [
+  process.env.FRONTEND_DIR && path.resolve(process.env.FRONTEND_DIR),
+  path.resolve(moduleDir, '../public'), // server/public — self-contained one-folder deploy
+  path.resolve(moduleDir, '../../dist'), // repo/dist — monorepo / dev build
+].filter(Boolean);
+const frontendDir = frontendCandidates.find((dir) => fs.existsSync(path.join(dir, 'index.html')));
+if (frontendDir) {
   app.use(express.static(frontendDir));
   // SPA fallback: any non-API GET returns index.html.
   app.use((req, res, next) => {
@@ -63,7 +66,7 @@ if (fs.existsSync(path.join(frontendDir, 'index.html'))) {
   });
   console.log('[server] serving frontend from', frontendDir);
 } else {
-  console.log('[server] no frontend build at', frontendDir, '— serving API only');
+  console.log('[server] no frontend build found (checked:', frontendCandidates.join(', '), ') — serving API only');
 }
 
 // Centralized JSON error handler.

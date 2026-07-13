@@ -380,6 +380,17 @@ app.innerHTML = `
         </section>
 
         <section class="panel converter-panel">
+          <details class="psa-instructions" open>
+            <summary>How the PSA method works</summary>
+            <ol class="psa-steps-list">
+              <li>Enter your current in-game sensitivity below and press <strong>Start PSA</strong>.</li>
+              <li>You'll get two options — a <strong>lower</strong> and a <strong>higher</strong> sensitivity. Set each one in-game and test it with the same routine (e.g. <code>aim_botz</code>, a deathmatch, or retakes).</li>
+              <li>Pick the side that felt <strong>more controllable</strong> — better first-shot accuracy and target tracking.</li>
+              <li>The range narrows around your choice. Repeat for all <strong>7 rounds</strong>.</li>
+              <li>After the final round you get your <strong>recommended sensitivity</strong>. Apply it via <em>Settings → Mouse</em> or the console: <code>sensitivity &lt;value&gt;</code>.</li>
+            </ol>
+            <p class="hint">Tips: give each value equal test time, keep your DPI &amp; resolution the same throughout, and use the same map/routine every round for a fair comparison.</p>
+          </details>
           <label class="field">
             <span>Starting in-game sensitivity</span>
             <input id="psa-start" type="number" min="0" step="0.01" inputmode="decimal" value="1.00" />
