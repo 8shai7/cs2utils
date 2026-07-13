@@ -1498,6 +1498,12 @@ input[type='color'] {
   gap: 0.9rem;
 }
 
+.pros-admin-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .pro-card {
   display: grid;
   gap: 0.6rem;
