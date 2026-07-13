@@ -1,9 +1,9 @@
 {
-  "name": "cs2-crosshair-converter",
+  "name": "cs2utils",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Convert CS2 crosshair share codes to console commands and back, with live preview",
+  "description": "CS2 utilities: crosshair converter, sensitivity matcher, and more",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

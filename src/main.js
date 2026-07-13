@@ -23,7 +23,7 @@ app.innerHTML = `
   <div class="page">
     <header class="hero">
       <div class="hero-badge">Counter-Strike 2</div>
-      <h1>CS2 Toolkit</h1>
+      <h1>CS2 Utils</h1>
       <p class="hero-sub">
         Crosshair code conversion with live preview, plus FPS sensitivity conversion
         that keeps your cm/360 the same across games.
