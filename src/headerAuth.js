@@ -6,6 +6,7 @@ import { resolveMediaUrl, api, steamLoginUrl } from './api.js';
 let menuEl;
 let modalEl;
 let authMode = 'login';
+let captcha = { required: false, token: null, svg: '' };
 
 function esc(str) {
   return String(str ?? '')
@@ -68,6 +69,17 @@ function renderModal() {
             ? ''
             : `<label class="field"><span>Password</span><input id="hdr-password" type="password" autocomplete="${isLogin ? 'current-password' : 'new-password'}" /></label>`
         }
+        ${
+          isLogin && captcha.required
+            ? `<div class="captcha-field">
+                 <div class="captcha-row">
+                   <div class="captcha-image" id="hdr-captcha-img">${captcha.svg}</div>
+                   <button type="button" class="captcha-refresh" id="hdr-captcha-refresh" title="New image" aria-label="New image">&#8635;</button>
+                 </div>
+                 <label class="field"><span>Enter the characters above</span><input id="hdr-captcha" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" /></label>
+               </div>`
+            : ''
+        }
         <button class="btn primary" type="submit">${isForgot ? 'Send reset link' : isLogin ? 'Log in' : 'Create account'}</button>
         <p class="auth-alt">${
           isForgot
@@ -97,26 +109,66 @@ function renderModal() {
     }),
   );
   modalEl.querySelector('#hdr-auth-form').addEventListener('submit', onSubmit);
+  modalEl.querySelector('#hdr-captcha-refresh')?.addEventListener('click', async () => {
+    await loadCaptcha();
+    const img = modalEl.querySelector('#hdr-captcha-img');
+    if (img) img.innerHTML = captcha.svg;
+    const inp = modalEl.querySelector('#hdr-captcha');
+    if (inp) inp.value = '';
+  });
   modalEl.querySelector('#hdr-email')?.focus();
+}
+
+async function loadCaptcha() {
+  try {
+    const c = await api.auth.captcha();
+    captcha.token = c.token;
+    captcha.svg = c.svg;
+  } catch {
+    /* ignore — the next submit will re-request */
+  }
+}
+
+// Re-render the modal while keeping whatever the user already typed.
+function rerenderPreserving() {
+  const email = modalEl.querySelector('#hdr-email')?.value || '';
+  const password = modalEl.querySelector('#hdr-password')?.value || '';
+  const username = modalEl.querySelector('#hdr-username')?.value || '';
+  renderModal();
+  const e = modalEl.querySelector('#hdr-email');
+  if (e) e.value = email;
+  const p = modalEl.querySelector('#hdr-password');
+  if (p) p.value = password;
+  const u = modalEl.querySelector('#hdr-username');
+  if (u) u.value = username;
 }
 
 async function onSubmit(e) {
   e.preventDefault();
-  const statusEl = modalEl.querySelector('#hdr-auth-status');
   const email = modalEl.querySelector('#hdr-email')?.value || '';
   const password = modalEl.querySelector('#hdr-password')?.value || '';
   const username = modalEl.querySelector('#hdr-username')?.value || '';
+  const captchaAnswer = modalEl.querySelector('#hdr-captcha')?.value || '';
   try {
     if (authMode === 'forgot') {
       await api.auth.forgot(email);
-      statusEl.textContent = 'If an account exists for that email, a reset link is on its way.';
-      statusEl.className = 'status ok';
+      const el = modalEl.querySelector('#hdr-auth-status');
+      el.textContent = 'If an account exists for that email, a reset link is on its way.';
+      el.className = 'status ok';
       return;
     }
-    if (authMode === 'login') await login({ email, password });
+    if (authMode === 'login') await login({ email, password, captchaToken: captcha.token, captchaAnswer });
     else await register({ email, username, password });
+    captcha = { required: false, token: null, svg: '' };
     closeModal();
   } catch (err) {
+    // A failed login may now require a captcha (or a fresh one after a wrong answer).
+    if (authMode === 'login' && err?.data?.captchaRequired) {
+      captcha.required = true;
+      await loadCaptcha();
+      rerenderPreserving();
+    }
+    const statusEl = modalEl.querySelector('#hdr-auth-status');
     if (statusEl) {
       statusEl.textContent = err.message;
       statusEl.className = 'status error';

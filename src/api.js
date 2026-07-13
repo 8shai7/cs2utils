@@ -57,7 +57,10 @@ async function request(method, path, body, { auth = false } = {}) {
     }
   }
   if (!res.ok) {
-    throw new Error((data && data.error) || `Request failed (${res.status}).`);
+    const err = new Error((data && data.error) || `Request failed (${res.status}).`);
+    err.status = res.status;
+    err.data = data;
+    throw err;
   }
   return data;
 }
@@ -98,6 +101,9 @@ export const api = {
     },
     logout() {
       setToken(null);
+    },
+    async captcha() {
+      return request('GET', '/auth/captcha');
     },
     async changePassword(input) {
       return request('POST', '/auth/password', input, { auth: true });

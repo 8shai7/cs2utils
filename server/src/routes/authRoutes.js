@@ -9,8 +9,32 @@ import { asyncHandler, ApiError, EMAIL_RE } from '../util.js';
 import { uploadToImgbb } from '../imgbb.js';
 import { sendPasswordResetEmail } from '../mailer.js';
 import { buildSteamLoginUrl, verifySteamAssertion, fetchSteamProfile } from '../steam.js';
+import { createCaptcha, verifyCaptcha } from '../captcha.js';
 
 const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
+
+// Require a CAPTCHA once an email has failed to log in this many times.
+const LOGIN_CAPTCHA_THRESHOLD = 2;
+const FAIL_TTL_MS = 15 * 60 * 1000;
+const loginFailures = new Map(); // email -> { count, ts }
+
+function failCount(email) {
+  const entry = loginFailures.get(email);
+  if (!entry) return 0;
+  if (Date.now() - entry.ts > FAIL_TTL_MS) {
+    loginFailures.delete(email);
+    return 0;
+  }
+  return entry.count;
+}
+function bumpFail(email) {
+  const count = failCount(email) + 1;
+  loginFailures.set(email, { count, ts: Date.now() });
+  return count;
+}
+function clearFail(email) {
+  loginFailures.delete(email);
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -55,18 +79,40 @@ authRoutes.post(
   }),
 );
 
+// Returns a fresh CAPTCHA challenge for the login form.
+authRoutes.get('/captcha', (_req, res) => {
+  res.json(createCaptcha());
+});
+
 authRoutes.post(
   '/login',
   asyncHandler(async (req, res) => {
-    let { email, password } = req.body || {};
+    let { email, password, captchaToken, captchaAnswer } = req.body || {};
     email = normalizeEmail(email);
 
+    // After repeated failures, a CAPTCHA is required before checking credentials.
+    if (failCount(email) >= LOGIN_CAPTCHA_THRESHOLD && !verifyCaptcha(captchaToken, captchaAnswer)) {
+      return res.status(400).json({ error: 'Please complete the captcha to continue.', captchaRequired: true });
+    }
+
     const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
-    if (!rows.length) throw new ApiError(401, 'No account found with that email.');
+    if (!rows.length) {
+      bumpFail(email);
+      return res
+        .status(401)
+        .json({ error: 'No account found with that email.', captchaRequired: failCount(email) >= LOGIN_CAPTCHA_THRESHOLD });
+    }
 
     const row = rows[0];
-    const ok = await verifyPassword(password || '', row.password_hash);
-    if (!ok) throw new ApiError(401, 'Incorrect password.');
+    const ok = row.password_hash ? await verifyPassword(password || '', row.password_hash) : false;
+    if (!ok) {
+      bumpFail(email);
+      return res
+        .status(401)
+        .json({ error: 'Incorrect password.', captchaRequired: failCount(email) >= LOGIN_CAPTCHA_THRESHOLD });
+    }
+
+    clearFail(email);
 
     // Guarantee the configured owner email always keeps owner privileges.
     if (email === OWNER_EMAIL && row.role !== 'owner') {

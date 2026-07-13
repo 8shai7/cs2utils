@@ -198,6 +198,41 @@ button.account-chip:hover {
   margin: 0;
 }
 
+.captcha-field {
+  display: grid;
+  gap: 0.5rem;
+}
+.captcha-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.captcha-image {
+  line-height: 0;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  overflow: hidden;
+  user-select: none;
+}
+.captcha-image svg {
+  display: block;
+}
+.captcha-refresh {
+  background: var(--panel-bg, #1a1d27);
+  border: 1px solid var(--panel-border);
+  color: var(--text, #e6e6e6);
+  border-radius: 8px;
+  width: 2.2rem;
+  height: 2.2rem;
+  font-size: 1.1rem;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.captcha-refresh:hover {
+  border-color: var(--accent-strong);
+  color: var(--accent-strong);
+}
+
 .linkish {
   background: none;
   border: 0;
