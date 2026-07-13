@@ -196,6 +196,17 @@ const SCHEMA = [
     sort_order INT NOT NULL DEFAULT 0,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  `CREATE TABLE IF NOT EXISTS map_guide_imports (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    author_id INT NOT NULL,
+    map VARCHAR(40) NOT NULL,
+    file_name VARCHAR(160) NULL,
+    guide_text MEDIUMTEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_author (author_id),
+    CONSTRAINT fk_guide_import_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 ];
 
 // Idempotent column migrations for tables that already exist.
@@ -216,6 +227,8 @@ const MIGRATIONS = [
   'ALTER TABLE users ADD INDEX IF NOT EXISTS idx_steam (steam_id)',
   'ALTER TABLE pro_settings ADD COLUMN IF NOT EXISTS photo VARCHAR(500) NULL',
   'ALTER TABLE pro_settings ADD COLUMN IF NOT EXISTS team_logo VARCHAR(500) NULL',
+  'ALTER TABLE nades ADD COLUMN IF NOT EXISTS guide_import_id INT NULL',
+  'ALTER TABLE nades ADD INDEX IF NOT EXISTS idx_guide_import (guide_import_id)',
 ];
 
 export async function initDb() {

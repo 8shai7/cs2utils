@@ -251,8 +251,14 @@ export const api = {
     async parseMapGuide(text) {
       return request('POST', '/nades/map-guide/parse', { text }, { auth: true });
     },
-    async importMapGuide({ text, nades, side } = {}) {
-      return request('POST', '/nades/map-guide/import', { text, nades, side }, { auth: true });
+    async importMapGuide({ text, nades, side, guideText, fileName } = {}) {
+      return request('POST', '/nades/map-guide/import', { text, nades, side, guideText, fileName }, { auth: true });
+    },
+    async practicePackFromText({ text, map, importId } = {}) {
+      return request('POST', '/nades/map-guide/practice-pack', { text, map, importId }, { auth: true });
+    },
+    async practicePackFromImport(importId) {
+      return request('GET', `/nades/map-guide/imports/${importId}/practice-pack`, undefined, { auth: true });
     },
   },
   commands: {
