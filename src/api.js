@@ -105,6 +105,26 @@ export const api = {
       return request('GET', '/settings');
     },
   },
+  configs: {
+    async list({ sort = 'top', q = '' } = {}) {
+      const params = new URLSearchParams();
+      if (sort) params.set('sort', sort);
+      if (q) params.set('q', q);
+      const qs = params.toString();
+      const data = await request('GET', `/configs${qs ? `?${qs}` : ''}`, undefined, { auth: true });
+      return data.configs;
+    },
+    async create(input) {
+      const data = await request('POST', '/configs', input, { auth: true });
+      return data.config;
+    },
+    async rate(id, rating) {
+      return request('POST', `/configs/${id}/rate`, { rating }, { auth: true });
+    },
+    async remove(id) {
+      return request('DELETE', `/configs/${id}`, undefined, { auth: true });
+    },
+  },
   nades: {
     async list({ map = '', type = '' } = {}) {
       const q = new URLSearchParams();

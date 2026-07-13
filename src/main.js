@@ -20,6 +20,7 @@ import {
 import { initNadesTool } from './nadesUI.js';
 import { initCommandsTool } from './commandsUI.js';
 import { initProfileTool } from './profileUI.js';
+import { initConfigsTool } from './configsUI.js';
 import { initHeaderAuth } from './headerAuth.js';
 import { api } from './api.js';
 import { renderCrosshairPreview } from './preview.js';
@@ -72,6 +73,10 @@ app.innerHTML = `
         <button class="tool-tab" data-tool="commands" role="tab" aria-selected="false">
           <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3"/><line x1="13" y1="15" x2="17" y2="15"/></svg>
           <span>Commands</span>
+        </button>
+        <button class="tool-tab" data-tool="configs" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M12 11v6"/><path d="M9.5 14.5 12 17l2.5-2.5"/></svg>
+          <span>Configs</span>
         </button>
       </nav>
       <p class="tool-desc" id="tool-desc"></p>
@@ -379,6 +384,8 @@ app.innerHTML = `
 
     <main id="commands-tool" class="tool-view"></main>
 
+    <main id="configs-tool" class="tool-view"></main>
+
     <main id="profile-tool" class="tool-view"></main>
 
     <footer class="footer">
@@ -662,6 +669,8 @@ const TOOL_DESCRIPTIONS = {
     'Browse community grenade line-ups, or sign in to submit your own with a 2D throw guide, videos and photos.',
   commands:
     'Copy up-to-date CS2 launch options and console commands, recommend the ones that help, and share tips in the comments.',
+  configs:
+    'Share your CS2 configs and video settings, download other players\u2019 setups, and rate the best ones.',
   profile: 'Your account, contributions, and settings.',
 };
 
@@ -1160,5 +1169,6 @@ document.addEventListener('aimkit:settings-updated', loadDonate);
 initHeaderAuth();
 initNadesTool();
 initCommandsTool();
+initConfigsTool();
 initProfileTool();
 loadDonate();

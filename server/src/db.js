@@ -100,6 +100,30 @@ const SCHEMA = [
     command_key VARCHAR(64) PRIMARY KEY,
     first_seen BIGINT NOT NULL
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  `CREATE TABLE IF NOT EXISTS configs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    author_id INT NOT NULL,
+    title VARCHAR(160) NOT NULL,
+    description VARCHAR(1000) NULL,
+    config_text MEDIUMTEXT NULL,
+    video_text MEDIUMTEXT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_author (author_id),
+    INDEX idx_created (created_at),
+    CONSTRAINT fk_config_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  `CREATE TABLE IF NOT EXISTS config_ratings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    config_id INT NOT NULL,
+    user_id INT NOT NULL,
+    rating TINYINT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_config_user (config_id, user_id),
+    CONSTRAINT fk_rating_config FOREIGN KEY (config_id) REFERENCES configs(id) ON DELETE CASCADE,
+    CONSTRAINT fk_rating_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 ];
 
 export async function initDb() {
