@@ -103,8 +103,11 @@ function nadesHtml() {
             m.status === 'pending'
               ? `<button class="btn btn-sm" data-media-approve="${m.id}">Approve</button>
                  <button class="btn btn-sm ghost" data-media-reject="${m.id}">Reject</button>`
-              : ''
+              : m.status === 'approved'
+                ? `<button class="btn btn-sm ghost" data-media-reject="${m.id}">Unpublish</button>`
+                : `<button class="btn btn-sm" data-media-approve="${m.id}">Approve</button>`
           }
+          <button class="btn btn-sm ghost danger" data-media-delete="${m.id}">Remove</button>
         </div>`,
           )
           .join('');
@@ -126,6 +129,7 @@ function nadesHtml() {
           <div class="actions">
             <button class="btn btn-sm" data-nade-approve="${n.id}">Approve nade</button>
             <button class="btn btn-sm ghost" data-nade-reject="${n.id}">Reject nade</button>
+            <button class="btn btn-sm ghost danger" data-nade-delete="${n.id}">Delete</button>
           </div>
         </article>`;
       })
@@ -144,6 +148,7 @@ function commentsHtml() {
         <div class="actions">
           <button class="btn btn-sm" data-comment-approve="${c.id}">Approve</button>
           <button class="btn btn-sm ghost" data-comment-reject="${c.id}">Reject</button>
+          <button class="btn btn-sm ghost danger" data-comment-delete="${c.id}">Delete</button>
         </div>
       </article>`,
     )
@@ -261,6 +266,9 @@ function contactHtml() {
           m.sent ? 'emailed' : 'stored only'
         }</p>
         <p class="admin-message">${esc(m.message)}</p>
+        <div class="actions">
+          <button class="btn btn-sm ghost danger" data-contact-delete="${m.id}">Delete</button>
+        </div>
       </article>`,
     )
     .join('');
@@ -295,6 +303,9 @@ function logsHtml() {
     ['media.reject', 'Media reject'],
     ['comment.approve', 'Comment approve'],
     ['comment.reject', 'Comment reject'],
+    ['comment.delete', 'Comment delete'],
+    ['media.delete', 'Media delete'],
+    ['contact.delete', 'Contact delete'],
     ['highlight.keep', 'Highlight keep'],
     ['highlight.delete', 'Highlight delete'],
     ['user.role', 'User role'],
@@ -444,11 +455,23 @@ function wire() {
   tool.querySelectorAll('[data-nade-reject]').forEach((b) =>
     b.addEventListener('click', () => act(async () => { await api.admin.reviewNade(b.dataset.nadeReject, 'rejected'); await reload(); }, 'Nade rejected.')),
   );
+  tool.querySelectorAll('[data-nade-delete]').forEach((b) =>
+    b.addEventListener('click', () => {
+      if (!confirm('Permanently delete this nade and its media?')) return;
+      act(async () => { await api.nades.remove(b.dataset.nadeDelete); await reload(); }, 'Nade deleted.');
+    }),
+  );
   tool.querySelectorAll('[data-media-approve]').forEach((b) =>
     b.addEventListener('click', () => act(async () => { await api.admin.reviewMedia(b.dataset.mediaApprove, 'approved'); await reload(); }, 'Media approved.')),
   );
   tool.querySelectorAll('[data-media-reject]').forEach((b) =>
     b.addEventListener('click', () => act(async () => { await api.admin.reviewMedia(b.dataset.mediaReject, 'rejected'); await reload(); }, 'Media rejected.')),
+  );
+  tool.querySelectorAll('[data-media-delete]').forEach((b) =>
+    b.addEventListener('click', () => {
+      if (!confirm('Permanently remove this media?')) return;
+      act(async () => { await api.admin.removeMedia(b.dataset.mediaDelete); await reload(); }, 'Media removed.');
+    }),
   );
 
   const adminSelectAll = tool.querySelector('#admin-nade-select-all');
@@ -484,6 +507,12 @@ function wire() {
   );
   tool.querySelectorAll('[data-comment-reject]').forEach((b) =>
     b.addEventListener('click', () => act(async () => { await api.admin.reviewComment(b.dataset.commentReject, 'rejected'); await reload(); }, 'Comment rejected.')),
+  );
+  tool.querySelectorAll('[data-comment-delete]').forEach((b) =>
+    b.addEventListener('click', () => {
+      if (!confirm('Permanently delete this comment?')) return;
+      act(async () => { await api.admin.removeComment(b.dataset.commentDelete); await reload(); }, 'Comment deleted.');
+    }),
   );
 
   // Reports
@@ -549,6 +578,14 @@ function wire() {
       sourceUrl: 'https://www.hltv.org/stats/players',
       sourceLabel: 'Open HLTV',
       onImport: async (content) => { const r = await api.admin.importPros(content); await loadSection('sync'); return `Imported ${r.count} players.`; },
+    }),
+  );
+
+  // Contact
+  tool.querySelectorAll('[data-contact-delete]').forEach((b) =>
+    b.addEventListener('click', () => {
+      if (!confirm('Delete this contact message?')) return;
+      act(async () => { await api.admin.removeContact(b.dataset.contactDelete); await reload(); }, 'Message deleted.');
     }),
   );
 

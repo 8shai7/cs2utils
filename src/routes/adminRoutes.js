@@ -222,6 +222,29 @@ adminRoutes.post(
   }),
 );
 
+// Hard-delete a comment (any status, including approved).
+adminRoutes.delete(
+  '/comments/:id',
+  asyncHandler(async (req, res) => {
+    const [rows] = await pool.query(
+      'SELECT id, command_key, username, body, status FROM command_comments WHERE id = ?',
+      [req.params.id],
+    );
+    if (!rows.length) return res.json({ ok: true });
+    const c = rows[0];
+    await pool.query('DELETE FROM command_comments WHERE id = ?', [req.params.id]);
+    await writeOwnerLog({
+      actor: req.user,
+      action: 'comment.delete',
+      entityType: 'comment',
+      entityId: c.id,
+      summary: `Deleted comment by ${c.username} on ${c.command_key} (was ${c.status})`,
+      detail: { body: String(c.body || '').slice(0, 200), status: c.status },
+    });
+    res.json({ ok: true });
+  }),
+);
+
 // Bulk approve/reject nades (must be registered before /nades/:id/review).
 adminRoutes.post(
   '/nades/review-bulk',
@@ -341,6 +364,28 @@ adminRoutes.post(
   }),
 );
 
+// Hard-delete media (any status, including approved).
+adminRoutes.delete(
+  '/media/:mediaId',
+  asyncHandler(async (req, res) => {
+    const [rows] = await pool.query('SELECT id, nade_id, kind, status FROM nade_media WHERE id = ?', [
+      req.params.mediaId,
+    ]);
+    if (!rows.length) return res.json({ ok: true });
+    const media = rows[0];
+    await pool.query('DELETE FROM nade_media WHERE id = ?', [req.params.mediaId]);
+    await writeOwnerLog({
+      actor: req.user,
+      action: 'media.delete',
+      entityType: 'media',
+      entityId: media.id,
+      summary: `Deleted media #${media.id} on nade #${media.nade_id} (was ${media.status})`,
+      detail: { nadeId: media.nade_id, kind: media.kind, status: media.status },
+    });
+    res.json({ ok: true });
+  }),
+);
+
 adminRoutes.get(
   '/users',
   asyncHandler(async (_req, res) => {
@@ -380,6 +425,27 @@ adminRoutes.get(
   asyncHandler(async (_req, res) => {
     const [rows] = await pool.query('SELECT * FROM contact_messages ORDER BY created_at DESC LIMIT 200');
     res.json({ messages: rows });
+  }),
+);
+
+adminRoutes.delete(
+  '/contact/:id',
+  asyncHandler(async (req, res) => {
+    const [rows] = await pool.query('SELECT id, name, email, subject FROM contact_messages WHERE id = ?', [
+      req.params.id,
+    ]);
+    await pool.query('DELETE FROM contact_messages WHERE id = ?', [req.params.id]);
+    if (rows.length) {
+      await writeOwnerLog({
+        actor: req.user,
+        action: 'contact.delete',
+        entityType: 'contact',
+        entityId: rows[0].id,
+        summary: `Deleted contact message from ${rows[0].name} <${rows[0].email}>`,
+        detail: { subject: rows[0].subject || '' },
+      });
+    }
+    res.json({ ok: true });
   }),
 );
 

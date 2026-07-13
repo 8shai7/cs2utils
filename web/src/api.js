@@ -294,6 +294,9 @@ export const api = {
     async reviewComment(id, decision) {
       return request('POST', `/admin/comments/${id}/review`, { decision }, { auth: true });
     },
+    async removeComment(id) {
+      return request('DELETE', `/admin/comments/${id}`, undefined, { auth: true });
+    },
     async syncCommands() {
       return request('POST', '/admin/commands/sync', {}, { auth: true });
     },
@@ -347,6 +350,9 @@ export const api = {
     async reviewMediaBulk(ids, decision) {
       return request('POST', '/admin/media/review-bulk', { ids, decision }, { auth: true });
     },
+    async removeMedia(mediaId) {
+      return request('DELETE', `/admin/media/${mediaId}`, undefined, { auth: true });
+    },
     async users() {
       const data = await request('GET', '/admin/users', undefined, { auth: true });
       return data.users;
@@ -358,6 +364,9 @@ export const api = {
     async contactMessages() {
       const data = await request('GET', '/admin/contact', undefined, { auth: true });
       return data.messages;
+    },
+    async removeContact(id) {
+      return request('DELETE', `/admin/contact/${id}`, undefined, { auth: true });
     },
     async ownerLogs({ limit = 100, offset = 0, action = '' } = {}) {
       const q = new URLSearchParams();

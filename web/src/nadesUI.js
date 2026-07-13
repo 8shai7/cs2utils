@@ -163,7 +163,7 @@ function mediaEmbed(m) {
 
 /* ---------------- views ---------------- */
 
-function nadeCardHtml(nade, { showStatus = false, showTryInGame = false } = {}) {
+function nadeCardHtml(nade, { showStatus = false, showTryInGame = false, adminRemove = false } = {}) {
   const t = typeInfo(nade.type);
   const media = (nade.media || []).filter((m) => (showStatus ? true : m.status === 'approved'));
   const mediaHtml = media.length
@@ -177,20 +177,32 @@ function nadeCardHtml(nade, { showStatus = false, showTryInGame = false } = {}) 
         .join('')}</div>`
     : `<p class="hint">No approved media yet — a 2D throw preview is shown above.</p>`;
 
+  const selected = showTryInGame && browseSelected.has(nade.id);
   const tryBtn = showTryInGame
     ? `<div class="nade-card-actions">
          <label class="browse-nade-check">
            <input type="checkbox" class="browse-select" value="${nade.id}" data-map="${esc(nade.map)}" ${
-             browseSelected.has(nade.id) ? 'checked' : ''
+             selected ? 'checked' : ''
            } />
            <span>Select</span>
          </label>
          <button class="btn" type="button" data-try-nades="${nade.id}">Try in game</button>
+         ${
+           adminRemove && isAdmin(session)
+             ? `<button class="btn ghost danger" type="button" data-delete-nade="${nade.id}">Remove</button>`
+             : ''
+         }
        </div>`
-    : '';
+    : adminRemove && isAdmin(session)
+      ? `<div class="nade-card-actions">
+           <button class="btn ghost danger" type="button" data-delete-nade="${nade.id}">Remove</button>
+         </div>`
+      : '';
 
   return `
-    <article class="nade-card">
+    <article class="nade-card${showTryInGame ? ' browse-nade-card' : ''}${selected ? ' selected' : ''}"${
+      showTryInGame ? ` data-browse-nade="${nade.id}" data-map="${esc(nade.map)}" tabindex="0" role="checkbox" aria-checked="${selected ? 'true' : 'false'}"` : ''
+    }>
       <div class="nade-card-head">
         <div>
           <h3>${esc(nade.title)}</h3>
@@ -217,7 +229,7 @@ function browseSelectedIds() {
 
 function browseHtml() {
   const cards = browseData.length
-    ? browseData.map((n) => nadeCardHtml(n, { showTryInGame: true })).join('')
+    ? browseData.map((n) => nadeCardHtml(n, { showTryInGame: true, adminRemove: true })).join('')
     : `<p class="hint">No approved nades yet${
         session ? ' — be the first to add one!' : ' — log in and add the nades you found.'
       }</p>`;
@@ -234,7 +246,7 @@ function browseHtml() {
       </label>
     </div>
     <div class="browse-select-bar">
-      <span class="hint">Select up to ${BROWSE_TRY_MAX} lineups (same map) to merge into one annotation file.</span>
+      <span class="hint">Click a lineup to select it (up to ${BROWSE_TRY_MAX}, same map) for one merged annotation file.</span>
       <button class="btn ghost" type="button" id="browse-select-clear" ${selectedCount ? '' : 'disabled'}>Clear selection</button>
       <button class="btn primary" type="button" id="browse-try-selected" ${selectedCount ? '' : 'disabled'}>
         Try selected in game (${selectedCount}/${BROWSE_TRY_MAX})
@@ -408,14 +420,22 @@ function reviewHtml() {
     </div>
     <div class="nade-grid">${reviewData
       .map((n) => {
-        const pendingMedia = (n.media || []).filter((m) => m.status === 'pending');
-        const mediaReview = pendingMedia.length
-          ? `<div class="review-media">${pendingMedia
+        const allMedia = n.media || [];
+        const mediaReview = allMedia.length
+          ? `<div class="review-media">${allMedia
               .map(
                 (m) => `<div class="review-media-item">${mediaEmbed(m)}
+                  <div class="nade-media-meta">${statusBadge(m.status)} <span>by ${esc(m.addedByName || '')}</span></div>
                   <div class="actions">
-                    <button class="btn" data-approve-media="${m.id}">Approve media</button>
-                    <button class="btn ghost" data-reject-media="${m.id}">Reject</button>
+                    ${
+                      m.status === 'pending'
+                        ? `<button class="btn" data-approve-media="${m.id}">Approve media</button>
+                           <button class="btn ghost" data-reject-media="${m.id}">Reject</button>`
+                        : m.status === 'approved'
+                          ? `<button class="btn ghost" data-reject-media="${m.id}">Unpublish</button>`
+                          : `<button class="btn" data-approve-media="${m.id}">Approve media</button>`
+                    }
+                    <button class="btn ghost danger" data-delete-media="${m.id}">Remove</button>
                   </div></div>`,
               )
               .join('')}</div>`
@@ -430,10 +450,22 @@ function reviewHtml() {
                  <div class="review-actions-btns">
                    <button class="btn primary" data-approve-nade="${n.id}">Approve</button>
                    <button class="btn ghost" data-reject-nade="${n.id}">Reject</button>
+                   <button class="btn ghost danger" data-delete-nade="${n.id}">Delete</button>
                  </div>
                  <input type="text" class="review-note" data-nade="${n.id}" placeholder="Optional note to the author" />
                </div>`
-            : `<p class="hint">Nade already ${esc(n.status)} — reviewing added media only.</p>`;
+            : `<div class="review-actions">
+                 <p class="hint">Nade already ${esc(n.status)} — you can still unpublish, re-approve, or delete it.</p>
+                 <div class="review-actions-btns">
+                   ${
+                     n.status !== 'approved'
+                       ? `<button class="btn primary" data-approve-nade="${n.id}">Approve</button>`
+                       : `<button class="btn ghost" data-reject-nade="${n.id}">Unpublish</button>`
+                   }
+                   <button class="btn ghost danger" data-delete-nade="${n.id}">Delete</button>
+                 </div>
+                 <input type="text" class="review-note" data-nade="${n.id}" placeholder="Optional note to the author" />
+               </div>`;
         return `<div class="nade-mine">${nadeCardHtml(n, { showStatus: true })}${mediaReview}${nadeButtons}</div>`;
       })
       .join('')}</div>`;
@@ -588,8 +620,23 @@ function wire() {
     loadView('browse');
   });
   tool.querySelectorAll('.browse-select').forEach((c) =>
-    c.addEventListener('change', () => onBrowseSelectToggle(c)),
+    c.addEventListener('change', () => {
+      onBrowseSelectToggle(Number(c.value), c.dataset.map, c.checked);
+      syncBrowseCard(c.closest('.browse-nade-card'));
+    }),
   );
+  tool.querySelectorAll('.browse-nade-card').forEach((card) => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('a, button, input, label')) return;
+      toggleBrowseCard(card);
+    });
+    card.addEventListener('keydown', (e) => {
+      if (e.key !== ' ' && e.key !== 'Enter') return;
+      if (e.target.closest('a, button, input, label')) return;
+      e.preventDefault();
+      toggleBrowseCard(card);
+    });
+  });
   tool.querySelector('#browse-select-clear')?.addEventListener('click', () => {
     browseSelected = new Map();
     render();
@@ -598,7 +645,10 @@ function wire() {
     onTryNades(browseSelectedIds());
   });
   tool.querySelectorAll('[data-try-nades]').forEach((b) =>
-    b.addEventListener('click', () => onTryNades([Number(b.dataset.tryNades)])),
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onTryNades([Number(b.dataset.tryNades)]);
+    }),
   );
 
   // Add form
@@ -695,6 +745,9 @@ function wire() {
   );
   tool.querySelectorAll('[data-delete-nade]').forEach((b) =>
     b.addEventListener('click', () => onDeleteNade(b.dataset.deleteNade)),
+  );
+  tool.querySelectorAll('[data-delete-media]').forEach((b) =>
+    b.addEventListener('click', () => onDeleteMedia(b.dataset.deleteMedia)),
   );
 
   // Review actions
@@ -878,33 +931,51 @@ async function onTryImport(importId) {
   }
 }
 
-function onBrowseSelectToggle(checkbox) {
-  const id = Number(checkbox.value);
-  const map = checkbox.dataset.map;
-  if (!Number.isFinite(id) || id <= 0) return;
+function onBrowseSelectToggle(id, map, wantSelected) {
+  if (!Number.isFinite(id) || id <= 0) return false;
 
-  if (!checkbox.checked) {
+  if (!wantSelected) {
     browseSelected.delete(id);
     updateBrowseSelectBar();
-    return;
+    return true;
   }
 
   if (browseSelected.size >= BROWSE_TRY_MAX && !browseSelected.has(id)) {
-    checkbox.checked = false;
     setStatus(`You can select at most ${BROWSE_TRY_MAX} lineups.`, 'error');
-    return;
+    return false;
   }
 
   for (const [, selectedMap] of browseSelected) {
     if (selectedMap !== map) {
-      checkbox.checked = false;
       setStatus('Selected lineups must be on the same map.', 'error');
-      return;
+      return false;
     }
   }
 
   browseSelected.set(id, map);
   updateBrowseSelectBar();
+  return true;
+}
+
+function syncBrowseCard(card) {
+  if (!card) return;
+  const id = Number(card.dataset.browseNade);
+  const on = browseSelected.has(id);
+  card.classList.toggle('selected', on);
+  card.setAttribute('aria-checked', on ? 'true' : 'false');
+  const checkbox = card.querySelector('.browse-select');
+  if (checkbox) checkbox.checked = on;
+}
+
+function toggleBrowseCard(card) {
+  const id = Number(card.dataset.browseNade);
+  const map = card.dataset.map;
+  const wantSelected = !browseSelected.has(id);
+  const ok = onBrowseSelectToggle(id, map, wantSelected);
+  if (!ok && wantSelected) {
+    // Validation failed — keep unselected.
+  }
+  syncBrowseCard(card);
 }
 
 function updateBrowseSelectBar() {
@@ -976,10 +1047,23 @@ async function onAddMedia(nadeId) {
 }
 
 async function onDeleteNade(nadeId) {
+  if (!confirm('Permanently delete this nade and its media?')) return;
   try {
     await api.nades.remove(nadeId);
-    await loadView('mine');
+    browseSelected.delete(Number(nadeId));
+    await loadView(view);
     setStatus('Nade deleted.', 'ok');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+}
+
+async function onDeleteMedia(mediaId) {
+  if (!confirm('Permanently remove this media?')) return;
+  try {
+    await api.admin.removeMedia(mediaId);
+    await loadView(view);
+    setStatus('Media removed.', 'ok');
   } catch (err) {
     setStatus(err.message, 'error');
   }
