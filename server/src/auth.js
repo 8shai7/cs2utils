@@ -3,6 +3,24 @@ import jwt from 'jsonwebtoken';
 import { config } from './config.js';
 import { pool } from './db.js';
 
+/**
+ * Canonicalize an email to stop the "Gmail dot/plus" trick from creating many
+ * accounts for one inbox: Gmail ignores dots and anything after a "+" in the
+ * local part, and treats googlemail.com as gmail.com.
+ */
+export function normalizeEmail(email) {
+  const e = String(email || '').trim().toLowerCase();
+  const at = e.lastIndexOf('@');
+  if (at < 1) return e;
+  let local = e.slice(0, at);
+  let domain = e.slice(at + 1);
+  if (domain === 'googlemail.com') domain = 'gmail.com';
+  if (domain === 'gmail.com') {
+    local = local.split('+')[0].replace(/\./g, '');
+  }
+  return `${local}@${domain}`;
+}
+
 export async function hashPassword(password) {
   return bcrypt.hash(password, 10);
 }

@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { pool } from '../db.js';
 import { config } from '../config.js';
-import { hashPassword, verifyPassword, signToken, publicUser, requireAuth } from '../auth.js';
+import { hashPassword, verifyPassword, signToken, publicUser, requireAuth, normalizeEmail } from '../auth.js';
 import { asyncHandler, ApiError, EMAIL_RE } from '../util.js';
+
+const OWNER_EMAIL = normalizeEmail(config.ownerEmail);
 
 export const authRoutes = Router();
 
@@ -10,7 +12,8 @@ authRoutes.post(
   '/register',
   asyncHandler(async (req, res) => {
     let { email, username, password } = req.body || {};
-    email = (email || '').trim().toLowerCase();
+    const rawEmail = (email || '').trim().toLowerCase();
+    email = normalizeEmail(rawEmail);
     username = (username || '').trim();
 
     if (!EMAIL_RE.test(email)) throw new ApiError(400, 'Enter a valid email address.');
@@ -26,7 +29,7 @@ authRoutes.post(
       throw new ApiError(409, 'That username is already taken.');
     }
 
-    const role = email === config.ownerEmail ? 'owner' : 'user';
+    const role = email === OWNER_EMAIL ? 'owner' : 'user';
     const passwordHash = await hashPassword(password);
     const [result] = await pool.query(
       'INSERT INTO users (email, username, password_hash, role) VALUES (?, ?, ?, ?)',
@@ -42,7 +45,7 @@ authRoutes.post(
   '/login',
   asyncHandler(async (req, res) => {
     let { email, password } = req.body || {};
-    email = (email || '').trim().toLowerCase();
+    email = normalizeEmail(email);
 
     const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
     if (!rows.length) throw new ApiError(401, 'No account found with that email.');
@@ -52,7 +55,7 @@ authRoutes.post(
     if (!ok) throw new ApiError(401, 'Incorrect password.');
 
     // Guarantee the configured owner email always keeps owner privileges.
-    if (email === config.ownerEmail && row.role !== 'owner') {
+    if (email === OWNER_EMAIL && row.role !== 'owner') {
       await pool.query('UPDATE users SET role = ? WHERE id = ?', ['owner', row.id]);
       row.role = 'owner';
     }
