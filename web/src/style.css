@@ -1631,11 +1631,15 @@ input[type='color'] {
 .try-game-card {
   width: min(560px, 100%);
   max-height: calc(100dvh - 2rem);
+  height: fit-content;
+  align-self: center;
+  justify-self: center;
   overflow-x: hidden;
   overflow-y: auto;
   display: grid;
   gap: 0.9rem;
-  padding: 1.15rem 1.25rem 1.15rem;
+  align-content: start;
+  padding: 1.15rem 1.25rem;
   border: 1px solid var(--panel-border);
   border-radius: 14px;
   background: var(--panel);
@@ -1662,8 +1666,11 @@ input[type='color'] {
 }
 
 .try-game-status {
-  min-height: 1.25rem;
   margin: 0;
+}
+
+.try-game-status:empty {
+  display: none;
 }
 
 .review-bulk-bar {
