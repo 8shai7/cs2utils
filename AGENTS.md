@@ -33,6 +33,14 @@ AimKit (domain: aimkit.net; formerly "CS2 Utils") is a **full-stack app**: a Vit
 - Backend scripts (`server/package.json`): `npm run dev` (watch) / `npm start`.
 - CI (`.github/workflows/deploy.yml`) only builds and deploys the **frontend** to GitHub Pages; it does not deploy the backend. The Nades DB features require the separately-hosted Node API.
 
+### Commands catalog (wiki auto-sync)
+
+- The Commands tool's catalog is stored in the DB (`commands_catalog`) and served from `GET /api/commands/catalog`. It is seeded from the built-in curated list (`server/src/commandsSeed.js`) and auto-synced.
+- Sync source resolution (`server/src/commandsSync.js`): `COMMANDS_SOURCE_URL` (a JSON feed) takes priority; otherwise it **scrapes a MediaWiki page** (`COMMANDS_WIKI_API` + `COMMANDS_WIKI_PAGE`, default the Valve Developer wiki) via `action=parse` and parses the cvar tables (`server/src/scrapeWiki.js`). Curated launch options are always merged in (they aren't on the wiki cvar page).
+- Gotcha: the Valve wiki serves an anti-bot proof-of-work challenge to datacenter IPs, so scraping it often fails from cloud hosts; on any failure the existing catalog/seed is kept and the error is recorded in `app_meta.commands_last_error`. Point `COMMANDS_SOURCE_URL`/`COMMANDS_WIKI_*` at a reachable source if needed.
+- CS2 update trigger: a watcher polls the CS2 build number via the Steam `ISteamApps/UpToDateCheck` endpoint (no key needed) and forces a catalog re-sync whenever the build changes. Admins can also trigger sync / re-check from the Commands tab.
+- "NEW" flagging: `command_seen` tracks first-seen time per key. Switching the catalog source re-baselines (nothing is flagged); afterward, keys that appear in later syncs from the same source are flagged new for `COMMANDS_NEW_WINDOW_DAYS`.
+
 ### Non-obvious notes
 
 - Crosshair share codes handled by the `csgo-sharecode` package are **case-sensitive** (its dictionary distinguishes upper/lower case). Do not upper/lower-case a share code before decoding it, or `decodeCrosshairShareCode` throws `InvalidCrosshairShareCode`.
