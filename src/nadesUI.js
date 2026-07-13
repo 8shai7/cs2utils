@@ -1,4 +1,6 @@
-import { api, isAdmin, isOwner, resolveMediaUrl } from './api.js';
+import { api, isAdmin, resolveMediaUrl } from './api.js';
+import { getUser, subscribe } from './session.js';
+import { openAuth } from './headerAuth.js';
 import {
   MAPS,
   NADE_TYPES,
@@ -17,7 +19,6 @@ const CANVAS_SIZE = 360;
 let tool;
 let session = null;
 let view = 'browse';
-let authMode = 'login';
 let statusMsg = { text: '', kind: '' };
 let reviewCount = 0;
 let loading = false;
@@ -95,14 +96,15 @@ function fmtDate(value) {
 
 /* ---------------- data loading ---------------- */
 
-async function refreshSession() {
-  session = await api.auth.me();
+async function updateReviewCount() {
   if (isAdmin(session)) {
     try {
       reviewCount = await api.admin.pendingCount();
     } catch {
       reviewCount = 0;
     }
+  } else {
+    reviewCount = 0;
   }
 }
 
@@ -200,8 +202,18 @@ function browseHtml() {
     <div class="nade-grid">${cards}</div>`;
 }
 
+function loginPrompt(action) {
+  return `<div class="login-prompt">
+    <p class="hint">Log in or create an account to ${esc(action)}.</p>
+    <div class="actions">
+      <button class="btn primary" data-open-auth="login">Log in</button>
+      <button class="btn" data-open-auth="register">Register</button>
+    </div>
+  </div>`;
+}
+
 function addHtml() {
-  if (!session) return `<p class="hint">Please log in or register to add nades.</p>`;
+  if (!session) return loginPrompt('add nades');
   return `
     <div class="nade-add">
       <div class="nade-add-map">
@@ -238,7 +250,7 @@ function addHtml() {
 }
 
 function mineHtml() {
-  if (!session) return `<p class="hint">Please log in to see your nades.</p>`;
+  if (!session) return loginPrompt('see and manage your nades');
   if (!mineData.length) return `<p class="hint">You haven't added any nades yet.</p>`;
   return `<div class="nade-grid">${mineData
     .map(
@@ -307,28 +319,6 @@ function usersHtml() {
   </div>`;
 }
 
-function accountBarHtml() {
-  if (session) {
-    return `<div class="nades-account">
-      <div>Signed in as <strong>${esc(session.username)}</strong> ${statusBadge(session.role)}</div>
-      <button class="btn ghost" id="logout-btn">Log out</button>
-    </div>`;
-  }
-  const isLogin = authMode === 'login';
-  return `<div class="nades-account auth">
-    <div class="auth-tabs">
-      <button class="tab ${isLogin ? 'active' : ''}" data-auth="login">Log in</button>
-      <button class="tab ${!isLogin ? 'active' : ''}" data-auth="register">Register</button>
-    </div>
-    <form id="auth-form" class="auth-form">
-      ${isLogin ? '' : '<label class="field"><span>Username</span><input id="auth-username" type="text" autocomplete="username" /></label>'}
-      <label class="field"><span>Email</span><input id="auth-email" type="email" autocomplete="email" /></label>
-      <label class="field"><span>Password</span><input id="auth-password" type="password" autocomplete="${isLogin ? 'current-password' : 'new-password'}" /></label>
-      <button class="btn primary" type="submit">${isLogin ? 'Log in' : 'Create account'}</button>
-    </form>
-  </div>`;
-}
-
 function subnavHtml() {
   const items = [['browse', 'Browse']];
   if (session) items.push(['add', 'Add nade'], ['mine', 'My nades']);
@@ -359,7 +349,6 @@ function viewBodyHtml() {
 function render() {
   tool.innerHTML = `
     <div class="nades-shell">
-      ${accountBarHtml()}
       ${subnavHtml()}
       <div class="nades-body">${viewBodyHtml()}</div>
       <div id="nades-status" class="status ${statusMsg.kind}">${esc(statusMsg.text)}</div>
@@ -387,21 +376,10 @@ function drawAddCanvas() {
 }
 
 function wire() {
-  // Auth
-  tool.querySelectorAll('[data-auth]').forEach((b) =>
-    b.addEventListener('click', () => {
-      authMode = b.dataset.auth;
-      render();
-    }),
+  // Open the global header auth modal from in-tool prompts.
+  tool.querySelectorAll('[data-open-auth]').forEach((b) =>
+    b.addEventListener('click', () => openAuth(b.dataset.openAuth)),
   );
-  tool.querySelector('#auth-form')?.addEventListener('submit', onAuthSubmit);
-  tool.querySelector('#logout-btn')?.addEventListener('click', async () => {
-    api.auth.logout();
-    session = null;
-    view = 'browse';
-    await loadView('browse');
-    setStatus('Logged out.', '');
-  });
 
   // Subnav
   tool.querySelectorAll('[data-view]').forEach((b) =>
@@ -484,21 +462,6 @@ function wire() {
 }
 
 /* ---------------- actions ---------------- */
-
-async function onAuthSubmit(e) {
-  e.preventDefault();
-  const email = tool.querySelector('#auth-email')?.value || '';
-  const password = tool.querySelector('#auth-password')?.value || '';
-  const username = tool.querySelector('#auth-username')?.value || '';
-  try {
-    session = authMode === 'login' ? await api.auth.login({ email, password }) : await api.auth.register({ email, username, password });
-    await refreshSession();
-    await loadView('browse');
-    setStatus(`Welcome, ${session.username}!`, 'ok');
-  } catch (err) {
-    setStatus(err.message, 'error');
-  }
-}
 
 async function onAddSubmit(e) {
   e.preventDefault();
@@ -598,7 +561,21 @@ async function onSetRole(userId, role) {
 export async function initNadesTool() {
   tool = document.querySelector('#nades-tool');
   if (!tool) return;
+
+  session = getUser();
+
+  // Subscribe BEFORE the initial load so we never miss the header's async
+  // session restore (which may resolve while we're still loading).
+  subscribe(async (user) => {
+    session = user;
+    await updateReviewCount();
+    // Drop into a view the current role is allowed to see.
+    if (!session && ['add', 'mine', 'review', 'users'].includes(view)) view = 'browse';
+    if (session && !isAdmin(session) && ['review', 'users'].includes(view)) view = 'browse';
+    await loadView(view);
+  });
+
+  await updateReviewCount();
   render();
-  await refreshSession();
   await loadView('browse');
 }

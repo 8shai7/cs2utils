@@ -18,6 +18,7 @@ import {
   PSA_ROUNDS,
 } from './psa.js';
 import { initNadesTool } from './nadesUI.js';
+import { initHeaderAuth } from './headerAuth.js';
 import { renderCrosshairPreview } from './preview.js';
 import {
   GAMES,
@@ -42,7 +43,10 @@ const app = document.querySelector('#app');
 app.innerHTML = `
   <div class="page">
     <header class="hero">
-      <div class="hero-badge">Counter-Strike 2</div>
+      <div class="header-top">
+        <div class="hero-badge">Counter-Strike 2</div>
+        <div class="account-menu" id="account-menu"></div>
+      </div>
       <h1>CS2 Utils</h1>
       <p class="hero-sub">
         Crosshair code conversion with live preview, plus FPS sensitivity conversion
@@ -962,4 +966,5 @@ renderCrosshairPreview(canvas, null);
 decodeFromCode();
 loadCs2ValorantExample();
 
+initHeaderAuth();
 initNadesTool();
