@@ -83,11 +83,15 @@ app.innerHTML = `
         <section class="panel preview-panel">
           <div class="panel-head">
             <h2>Preview</h2>
-            <span class="panel-tag">Approximate in-game look</span>
+            <span class="panel-tag">Actual in-game size</span>
           </div>
           <div class="preview-stage">
             <canvas id="preview-canvas" width="280" height="280" aria-label="Crosshair preview"></canvas>
           </div>
+          <label class="field preview-res-field">
+            <span>Resolution <output id="preview-res-scale"></output></span>
+            <select id="preview-res"></select>
+          </label>
           <dl id="preview-stats" class="preview-stats"></dl>
         </section>
 
@@ -378,6 +382,34 @@ app.innerHTML = `
 
 const canvas = /** @type {HTMLCanvasElement} */ (document.querySelector('#preview-canvas'));
 const previewStats = document.querySelector('#preview-stats');
+const previewResSelect = /** @type {HTMLSelectElement} */ (document.querySelector('#preview-res'));
+const previewResScale = document.querySelector('#preview-res-scale');
+
+// Common CS2 resolutions. The crosshair scales with vertical resolution, so the
+// pixel scale is height / 1080 (1080p ≈ 1 unit per pixel).
+const PREVIEW_RESOLUTIONS = [
+  { id: '1920x1080', h: 1080, label: '1920 × 1080 (16:9)' },
+  { id: '2560x1440', h: 1440, label: '2560 × 1440 (16:9)' },
+  { id: '3840x2160', h: 2160, label: '3840 × 2160 (4K)' },
+  { id: '1600x900', h: 900, label: '1600 × 900 (16:9)' },
+  { id: '1366x768', h: 768, label: '1366 × 768 (16:9)' },
+  { id: '1280x960', h: 960, label: '1280 × 960 (4:3)' },
+  { id: '1024x768', h: 768, label: '1024 × 768 (4:3)' },
+  { id: '1280x1024', h: 1024, label: '1280 × 1024 (5:4)' },
+];
+
+let lastPreviewCrosshair = null;
+
+function previewScale() {
+  const res = PREVIEW_RESOLUTIONS.find((r) => r.id === previewResSelect?.value) || PREVIEW_RESOLUTIONS[0];
+  return res.h / 1080;
+}
+
+function drawPreview(crosshair) {
+  lastPreviewCrosshair = crosshair;
+  renderCrosshairPreview(canvas, crosshair, previewScale());
+  if (previewResScale) previewResScale.textContent = `${previewScale().toFixed(2)}× scale`;
+}
 const crosshairStatus = document.querySelector('#crosshair-status');
 const sensitivityStatus = document.querySelector('#sensitivity-status');
 
@@ -433,7 +465,7 @@ function setStatus(el, message, kind = '') {
  * @param {import('csgo-sharecode').Crosshair} crosshair
  */
 function updatePreview(crosshair) {
-  renderCrosshairPreview(canvas, crosshair);
+  drawPreview(crosshair);
   previewStats.innerHTML = `
     <div><dt>Style</dt><dd>${crosshair.style}</dd></div>
     <div><dt>Size</dt><dd>${crosshair.length}</dd></div>
@@ -667,7 +699,7 @@ sharecodeInput.addEventListener('keydown', (e) => {
 commandsInput.addEventListener('input', () => {
   const text = commandsInput.value.trim();
   if (!text) {
-    renderCrosshairPreview(canvas, null);
+    drawPreview(null);
     previewStats.innerHTML = '';
     return;
   }
@@ -971,7 +1003,12 @@ psaResetBtn?.addEventListener('click', () => {
   setStatus(psaStatus, 'Enter a starting sensitivity and press Start PSA.', '');
 });
 
-renderCrosshairPreview(canvas, null);
+previewResSelect.innerHTML = PREVIEW_RESOLUTIONS.map(
+  (r) => `<option value="${r.id}">${r.label}</option>`,
+).join('');
+previewResSelect.addEventListener('change', () => drawPreview(lastPreviewCrosshair));
+
+drawPreview(null);
 decodeFromCode();
 loadCs2ValorantExample();
 

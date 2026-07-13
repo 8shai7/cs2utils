@@ -277,6 +277,24 @@ body {
   image-rendering: pixelated;
 }
 
+.preview-res-field {
+  padding: 0 1.2rem;
+  margin-bottom: 0.9rem;
+}
+
+.preview-res-field span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.preview-res-field output {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--accent-strong);
+}
+
 .preview-stats {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
