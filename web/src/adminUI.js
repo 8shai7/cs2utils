@@ -18,6 +18,7 @@ const SECTIONS = [
   { id: 'users', label: 'Users' },
   { id: 'sync', label: 'Data sync' },
   { id: 'contact', label: 'Contact' },
+  { id: 'logs', label: 'Logs', ownerOnly: true },
   { id: 'settings', label: 'Site settings', ownerOnly: true },
 ];
 
@@ -269,6 +270,76 @@ function settingsHtml() {
     </div>`;
 }
 
+function logsHtml() {
+  if (!isOwner(session)) return `<p class="hint">Owner only.</p>`;
+  const data = cache.logs || { total: 0, logs: [] };
+  const filter = cache.logsFilter || '';
+  const rows = data.logs || [];
+  const filterOpts = [
+    ['', 'All actions'],
+    ['nade.approve', 'Nade approve'],
+    ['nade.reject', 'Nade reject'],
+    ['nade.bulk_approve', 'Nade bulk approve'],
+    ['nade.bulk_reject', 'Nade bulk reject'],
+    ['nade.delete', 'Nade delete (author)'],
+    ['nade.admin_delete', 'Nade delete (admin)'],
+    ['media.approve', 'Media approve'],
+    ['media.reject', 'Media reject'],
+    ['comment.approve', 'Comment approve'],
+    ['comment.reject', 'Comment reject'],
+    ['highlight.keep', 'Highlight keep'],
+    ['highlight.delete', 'Highlight delete'],
+    ['user.role', 'User role'],
+    ['user.ban', 'User ban'],
+    ['user.unban', 'User unban'],
+    ['commands.sync', 'Commands sync'],
+    ['commands.import', 'Commands import'],
+    ['pros.sync', 'Pros sync'],
+    ['pros.import', 'Pros import'],
+    ['settings.save', 'Settings save'],
+  ]
+    .map(([v, label]) => `<option value="${esc(v)}" ${filter === v ? 'selected' : ''}>${esc(label)}</option>`)
+    .join('');
+  const list = rows.length
+    ? rows
+        .map((log) => {
+          const detail =
+            log.detail && typeof log.detail === 'object'
+              ? `<pre class="admin-log-detail">${esc(JSON.stringify(log.detail, null, 2))}</pre>`
+              : log.detail
+                ? `<pre class="admin-log-detail">${esc(String(log.detail))}</pre>`
+                : '';
+          return `
+        <article class="panel admin-item admin-log">
+          <div class="admin-item-head">
+            <span class="nade-badge">${esc(log.action)}</span>
+            <strong>${esc(log.summary || log.action)}</strong>
+            <span class="hint">${fmtDate(log.createdAt)}</span>
+          </div>
+          <p class="hint">by ${esc(log.actorName)} (${esc(log.actorRole)})${
+            log.entityType ? ` · ${esc(log.entityType)}${log.entityId != null ? ` #${esc(log.entityId)}` : ''}` : ''
+          }</p>
+          ${detail}
+        </article>`;
+        })
+        .join('')
+    : `<p class="hint">No log entries yet. Moderation and admin actions will show up here.</p>`;
+  return `
+    <div class="panel admin-item">
+      <div class="admin-item-head"><strong>Owner audit log</strong><span class="panel-tag">Owner only</span></div>
+      <p class="hint">Only you can see this. Admins’ approvals, bans, deletes, and syncs are recorded here.</p>
+      <div class="admin-log-toolbar">
+        <label class="field">
+          <span>Filter</span>
+          <select id="owner-logs-filter">${filterOpts}</select>
+        </label>
+        <button class="btn btn-sm" type="button" id="owner-logs-refresh">Refresh</button>
+        <span class="hint">${data.total || 0} total</span>
+      </div>
+    </div>
+    <div class="admin-logs">${list}</div>`;
+}
+
 const SECTION_RENDER = {
   overview: overviewHtml,
   nades: nadesHtml,
@@ -277,6 +348,7 @@ const SECTION_RENDER = {
   users: usersHtml,
   sync: syncHtml,
   contact: contactHtml,
+  logs: logsHtml,
   settings: settingsHtml,
 };
 
@@ -288,6 +360,9 @@ async function loadSection(id) {
     else if (id === 'reports') cache.reports = await api.admin.highlightReports();
     else if (id === 'users') cache.users = await api.admin.users();
     else if (id === 'contact') cache.contact = await api.admin.contactMessages();
+    else if (id === 'logs') {
+      cache.logs = await api.admin.ownerLogs({ action: cache.logsFilter || '' });
+    }
     else if (id === 'settings') cache.settings = await api.settings.get();
   } catch (err) {
     setStatus(err.message, 'error');
@@ -304,6 +379,7 @@ function render() {
     tool.querySelector('[data-open-auth]')?.addEventListener('click', () => openAuth('login'));
     return;
   }
+  if ((section === 'logs' || section === 'settings') && !isOwner(session)) section = 'overview';
   const tabs = SECTIONS.filter((s) => !s.ownerOnly || isOwner(session))
     .map(
       (s) =>
@@ -326,6 +402,9 @@ function render() {
 }
 
 async function goTo(id) {
+  if (id === 'logs' || id === 'settings') {
+    if (!isOwner(session)) id = 'overview';
+  }
   section = id;
   render();
   await loadSection(id);
@@ -466,6 +545,21 @@ function wire() {
       cache.settings = await api.admin.saveSettings({ paypalUrl, steamTradeUrl });
       document.dispatchEvent(new CustomEvent('aimkit:settings-updated'));
     }, 'Donate links saved.'),
+  );
+
+  // Owner logs
+  tool.querySelector('#owner-logs-filter')?.addEventListener('change', (e) => {
+    cache.logsFilter = e.target.value || '';
+    act(async () => {
+      await loadSection('logs');
+      render();
+    });
+  });
+  tool.querySelector('#owner-logs-refresh')?.addEventListener('click', () =>
+    act(async () => {
+      await loadSection('logs');
+      render();
+    }, 'Logs refreshed.'),
   );
 }
 

@@ -1760,6 +1760,31 @@ input[type='color'] {
   white-space: pre-wrap;
   margin: 0;
 }
+.admin-log-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: end;
+}
+.admin-log-toolbar .field {
+  min-width: 200px;
+  margin: 0;
+}
+.admin-logs {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+.admin-log-detail {
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--panel-border);
+  font-size: 0.78rem;
+  overflow-x: auto;
+  max-height: 140px;
+}
 .admin-users {
   display: grid;
   gap: 0.6rem;

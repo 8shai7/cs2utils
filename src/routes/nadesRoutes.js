@@ -5,6 +5,7 @@ import { asyncHandler, ApiError, clamp01 } from '../util.js';
 import { MAP_IDS, TYPE_IDS, TECHNIQUE_IDS, SIDE_IDS, detectMediaKind } from '../meta.js';
 import { parseMapGuide, MAX_IMPORT } from '../parseMapGuide.js';
 import { buildPracticePack, buildPracticePackFromNades } from '../mapGuidePractice.js';
+import { writeOwnerLog } from '../ownerLog.js';
 
 export const nadesRoutes = Router();
 
@@ -404,6 +405,17 @@ nadesRoutes.delete(
       throw new ApiError(403, 'You can only delete your own nades.');
     }
     await pool.query('DELETE FROM nades WHERE id = ?', [nade.id]);
+    const asAdmin = nade.author_id !== req.user.id && isAdminRole(req.user.role);
+    await writeOwnerLog({
+      actor: req.user,
+      action: asAdmin ? 'nade.admin_delete' : 'nade.delete',
+      entityType: 'nade',
+      entityId: nade.id,
+      summary: asAdmin
+        ? `Admin deleted nade “${nade.title}” (${nade.map}/${nade.type}, was ${nade.status})`
+        : `Deleted own nade “${nade.title}” (${nade.map}/${nade.type}, was ${nade.status})`,
+      detail: { authorId: nade.author_id, status: nade.status },
+    });
     res.json({ ok: true });
   }),
 );

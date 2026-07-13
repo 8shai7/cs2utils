@@ -359,6 +359,14 @@ export const api = {
       const data = await request('GET', '/admin/contact', undefined, { auth: true });
       return data.messages;
     },
+    async ownerLogs({ limit = 100, offset = 0, action = '' } = {}) {
+      const q = new URLSearchParams();
+      if (limit) q.set('limit', String(limit));
+      if (offset) q.set('offset', String(offset));
+      if (action) q.set('action', action);
+      const qs = q.toString();
+      return request('GET', `/admin/owner-logs${qs ? `?${qs}` : ''}`, undefined, { auth: true });
+    },
   },
   uploads: {
     async image(file) {

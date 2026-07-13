@@ -207,6 +207,22 @@ const SCHEMA = [
     INDEX idx_author (author_id),
     CONSTRAINT fk_guide_import_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  // Owner-only audit trail of moderation / admin actions.
+  `CREATE TABLE IF NOT EXISTS owner_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    actor_id INT NULL,
+    actor_name VARCHAR(80) NOT NULL,
+    actor_role VARCHAR(16) NOT NULL DEFAULT 'admin',
+    action VARCHAR(64) NOT NULL,
+    entity_type VARCHAR(32) NULL,
+    entity_id INT NULL,
+    summary VARCHAR(500) NOT NULL DEFAULT '',
+    detail TEXT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_created (created_at),
+    INDEX idx_action (action)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 ];
 
 // Idempotent column migrations for tables that already exist.
