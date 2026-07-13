@@ -241,7 +241,12 @@ function updatePreview(crosshair) {
 
 /** @param {string} code */
 function normalizeShareCode(code) {
-  return code.trim().toUpperCase().replace(/\s+/g, '');
+  // Share code bodies are case-sensitive (Base57), so only strip whitespace and
+  // normalize the leading "CSGO" prefix — never change the case of the payload.
+  return code
+    .trim()
+    .replace(/\s+/g, '')
+    .replace(/^csgo/i, 'CSGO');
 }
 
 function decodeFromCode() {
