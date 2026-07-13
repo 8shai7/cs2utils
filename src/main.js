@@ -6,6 +6,17 @@ import {
   InvalidShareCode,
 } from 'csgo-sharecode';
 import { parseCommandsToCrosshair, formatCommands, DEFAULT_CROSSHAIR } from './convars.js';
+import {
+  createPsaState,
+  psaCandidates,
+  psaChoose,
+  psaUndo,
+  psaComplete,
+  psaEstimate,
+  psaSpread,
+  psaFinal,
+  PSA_ROUNDS,
+} from './psa.js';
 import { renderCrosshairPreview } from './preview.js';
 import {
   GAMES,
@@ -39,6 +50,7 @@ app.innerHTML = `
       <nav class="tool-nav" role="tablist" aria-label="Tools">
         <button class="tool-tab active" data-tool="crosshair" role="tab" aria-selected="true">Crosshair</button>
         <button class="tool-tab" data-tool="sensitivity" role="tab" aria-selected="false">Sensitivity</button>
+        <button class="tool-tab" data-tool="psa" role="tab" aria-selected="false">PSA Calculator</button>
       </nav>
     </header>
 
@@ -259,6 +271,58 @@ app.innerHTML = `
 
           <div id="sens-formula" class="sens-formula"></div>
           <div id="sensitivity-status" class="status" role="status" aria-live="polite"></div>
+        </section>
+      </div>
+    </main>
+
+    <main id="psa-tool" class="tool-view">
+      <div class="layout layout-sensitivity">
+        <section class="panel sens-summary-panel">
+          <div class="panel-head">
+            <h2>PSA Method</h2>
+            <span class="panel-tag">Perfect Sensitivity Approximation</span>
+          </div>
+          <div class="sens-hero-stat">
+            <span id="psa-result" class="sens-big">—</span>
+            <span class="sens-unit" id="psa-result-label">recommended sensitivity</span>
+          </div>
+          <dl id="psa-stats" class="preview-stats sens-stats"></dl>
+          <p class="sens-note">A 7-round binary search: test both values in your usual practice routine, pick the side that feels more controllable, and repeat until it converges on your ideal sensitivity.</p>
+        </section>
+
+        <section class="panel converter-panel">
+          <label class="field">
+            <span>Starting in-game sensitivity</span>
+            <input id="psa-start" type="number" min="0" step="0.01" inputmode="decimal" value="1.00" />
+          </label>
+          <div class="actions">
+            <button class="btn primary" id="psa-begin">Start PSA</button>
+          </div>
+
+          <div id="psa-round" class="psa-round hidden">
+            <div class="psa-progress">
+              <span>Round <strong id="psa-round-num">1</strong> / 7</span>
+              <div class="psa-bar"><div id="psa-bar-fill" class="psa-bar-fill"></div></div>
+            </div>
+            <p class="psa-instruction">Test both values in-game, then choose the one that feels more controllable.</p>
+            <div class="psa-choices">
+              <button class="btn psa-choice" id="psa-lower">
+                <span class="psa-choice-label">Lower feels better</span>
+                <span class="psa-choice-val" id="psa-lower-val">—</span>
+              </button>
+              <button class="btn psa-choice" id="psa-higher">
+                <span class="psa-choice-label">Higher feels better</span>
+                <span class="psa-choice-val" id="psa-higher-val">—</span>
+              </button>
+            </div>
+            <div class="actions">
+              <button class="btn ghost" id="psa-undo">Undo last</button>
+              <button class="btn ghost" id="psa-reset">Reset</button>
+            </div>
+          </div>
+
+          <div id="psa-history" class="sens-formula hidden"></div>
+          <div id="psa-status" class="status" role="status" aria-live="polite"></div>
         </section>
       </div>
     </main>
@@ -755,6 +819,108 @@ document.querySelector('#copy-sens')?.addEventListener('click', () => {
   copyText(sensitivityStatus, sensTarget.value, 'converted sensitivity');
 });
 document.querySelector('#sens-cs2-val')?.addEventListener('click', loadCs2ValorantExample);
+
+// --- PSA (Perfect Sensitivity Approximation) calculator ---
+const psaStart = /** @type {HTMLInputElement} */ (document.querySelector('#psa-start'));
+const psaBegin = document.querySelector('#psa-begin');
+const psaRound = document.querySelector('#psa-round');
+const psaRoundNum = document.querySelector('#psa-round-num');
+const psaBarFill = document.querySelector('#psa-bar-fill');
+const psaLower = document.querySelector('#psa-lower');
+const psaHigher = document.querySelector('#psa-higher');
+const psaLowerVal = document.querySelector('#psa-lower-val');
+const psaHigherVal = document.querySelector('#psa-higher-val');
+const psaUndoBtn = document.querySelector('#psa-undo');
+const psaResetBtn = document.querySelector('#psa-reset');
+const psaResult = document.querySelector('#psa-result');
+const psaResultLabel = document.querySelector('#psa-result-label');
+const psaStats = document.querySelector('#psa-stats');
+const psaHistory = document.querySelector('#psa-history');
+const psaStatus = document.querySelector('#psa-status');
+
+/** @type {import('./psa.js').PsaState | null} */
+let psaState = null;
+
+function renderPsa() {
+  if (!psaState) {
+    psaRound?.classList.add('hidden');
+    psaHistory?.classList.add('hidden');
+    psaResult.textContent = '—';
+    psaResultLabel.textContent = 'recommended sensitivity';
+    psaStats.innerHTML = '';
+    return;
+  }
+
+  const done = psaComplete(psaState);
+  const estimate = done ? psaFinal(psaState) : psaEstimate(psaState);
+
+  psaResult.textContent = formatSens(estimate, 3);
+  psaResultLabel.textContent = done ? 'final recommended sensitivity' : 'current estimate';
+
+  psaStats.innerHTML = `
+    <div><dt>Range low</dt><dd>${formatSens(psaState.lo, 3)}</dd></div>
+    <div><dt>Range high</dt><dd>${formatSens(psaState.hi, 3)}</dd></div>
+    <div><dt>Spread</dt><dd>± ${formatSens((psaSpread(psaState) / 2) * 100, 1)}%</dd></div>
+    <div><dt>Base</dt><dd>${formatSens(psaState.base, 3)}</dd></div>
+  `;
+
+  if (done) {
+    psaRound?.classList.add('hidden');
+    setStatus(psaStatus, `Done — set your sensitivity to ${formatSens(estimate, 3)} and play a few sessions before changing again.`, 'ok');
+  } else {
+    const { lower, higher } = psaCandidates(psaState);
+    psaRound?.classList.remove('hidden');
+    psaRoundNum.textContent = String(psaState.round);
+    psaBarFill.style.width = `${((psaState.round - 1) / PSA_ROUNDS) * 100}%`;
+    psaLowerVal.textContent = formatSens(lower, 3);
+    psaHigherVal.textContent = formatSens(higher, 3);
+    setStatus(psaStatus, `Round ${psaState.round} of ${PSA_ROUNDS}: test both values, then pick the side that feels better.`, '');
+  }
+
+  if (psaState.choices.length > 0) {
+    psaHistory?.classList.remove('hidden');
+    const rows = psaState.choices
+      .map(
+        (c) =>
+          `Round ${c.round}: chose <strong>${c.side}</strong> (${formatSens(c.lower, 3)} vs ${formatSens(c.higher, 3)})`,
+      )
+      .join('<br />');
+    psaHistory.innerHTML = `<strong>History:</strong><br />${rows}`;
+  } else {
+    psaHistory?.classList.add('hidden');
+    psaHistory.innerHTML = '';
+  }
+}
+
+function startPsa() {
+  const base = Number(psaStart.value);
+  if (!Number.isFinite(base) || base <= 0) {
+    setStatus(psaStatus, 'Enter a valid starting sensitivity greater than 0.', 'error');
+    return;
+  }
+  psaState = createPsaState(base);
+  renderPsa();
+}
+
+function choosePsa(side) {
+  if (!psaState || psaComplete(psaState)) return;
+  psaState = psaChoose(psaState, side);
+  renderPsa();
+}
+
+psaBegin?.addEventListener('click', startPsa);
+psaLower?.addEventListener('click', () => choosePsa('lower'));
+psaHigher?.addEventListener('click', () => choosePsa('higher'));
+psaUndoBtn?.addEventListener('click', () => {
+  if (!psaState) return;
+  psaState = psaUndo(psaState);
+  renderPsa();
+});
+psaResetBtn?.addEventListener('click', () => {
+  psaState = null;
+  renderPsa();
+  setStatus(psaStatus, 'Enter a starting sensitivity and press Start PSA.', '');
+});
 
 renderCrosshairPreview(canvas, null);
 decodeFromCode();
