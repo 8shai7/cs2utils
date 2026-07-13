@@ -3,6 +3,7 @@ import { pool } from '../db.js';
 import { requireAuth, optionalAuth, isAdminRole } from '../auth.js';
 import { asyncHandler, ApiError, clamp01 } from '../util.js';
 import { MAP_IDS, TYPE_IDS, TECHNIQUE_IDS, SIDE_IDS, detectMediaKind } from '../meta.js';
+import { parseMapGuide, MAX_IMPORT } from '../parseMapGuide.js';
 
 export const nadesRoutes = Router();
 
@@ -88,6 +89,98 @@ nadesRoutes.get(
       [req.user.id],
     );
     res.json({ nades: await withMedia(rows) });
+  }),
+);
+
+// Parse a CS2 Map Guide / annotation .txt without creating nades (preview).
+nadesRoutes.post(
+  '/map-guide/parse',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const text = req.body?.text;
+    try {
+      const parsed = parseMapGuide(text);
+      res.json({
+        map: parsed.map,
+        mapName: parsed.mapName,
+        skipped: parsed.skipped,
+        totalNodes: parsed.totalNodes,
+        maxImport: MAX_IMPORT,
+        nades: parsed.nades,
+      });
+    } catch (err) {
+      throw new ApiError(400, err.message || 'Could not parse map guide.');
+    }
+  }),
+);
+
+// Import parsed (or raw) CS2 Map Guide lineups as pending nades.
+nadesRoutes.post(
+  '/map-guide/import',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const b = req.body || {};
+    const side = SIDE_IDS.includes(b.side) ? b.side : 't';
+
+    let drafts;
+    if (Array.isArray(b.nades) && b.nades.length) {
+      drafts = b.nades;
+    } else if (b.text) {
+      try {
+        drafts = parseMapGuide(b.text).nades;
+      } catch (err) {
+        throw new ApiError(400, err.message || 'Could not parse map guide.');
+      }
+    } else {
+      throw new ApiError(400, 'Provide map guide text or a list of nades to import.');
+    }
+
+    if (drafts.length > MAX_IMPORT) {
+      throw new ApiError(400, `Too many lineups (max ${MAX_IMPORT} per import).`);
+    }
+
+    const created = [];
+    for (const draft of drafts) {
+      const title = String(draft.title || '').trim();
+      if (title.length < 3) continue;
+      if (!MAP_IDS.includes(draft.map)) continue;
+      if (!TYPE_IDS.includes(draft.type)) continue;
+      if (!draft.start || !draft.end) continue;
+      const technique = TECHNIQUE_IDS.includes(draft.technique) ? draft.technique : 'stand';
+      const description = String(draft.description || '').trim() || null;
+
+      const [result] = await pool.query(
+        `INSERT INTO nades (author_id, map, type, side, technique, title, description, start_x, start_y, end_x, end_y, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+        [
+          req.user.id,
+          draft.map,
+          draft.type,
+          side,
+          technique,
+          title.slice(0, 160),
+          description,
+          clamp01(draft.start.x),
+          clamp01(draft.start.y),
+          clamp01(draft.end.x),
+          clamp01(draft.end.y),
+        ],
+      );
+      created.push(result.insertId);
+    }
+
+    if (!created.length) throw new ApiError(400, 'No valid lineups to import.');
+
+    const placeholders = created.map(() => '?').join(',');
+    const [rows] = await pool.query(
+      `SELECT n.*, u.username AS author_name FROM nades n JOIN users u ON u.id = n.author_id
+       WHERE n.id IN (${placeholders}) ORDER BY n.id ASC`,
+      created,
+    );
+    res.status(201).json({
+      count: created.length,
+      nades: await withMedia(rows),
+    });
   }),
 );
 

@@ -248,6 +248,12 @@ export const api = {
     async remove(nadeId) {
       return request('DELETE', `/nades/${nadeId}`, undefined, { auth: true });
     },
+    async parseMapGuide(text) {
+      return request('POST', '/nades/map-guide/parse', { text }, { auth: true });
+    },
+    async importMapGuide({ text, nades, side } = {}) {
+      return request('POST', '/nades/map-guide/import', { text, nades, side }, { auth: true });
+    },
   },
   commands: {
     async catalog() {
