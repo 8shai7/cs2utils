@@ -643,7 +643,7 @@ function wire() {
     if (!tryGamePack) return;
     downloadPracticePack(tryGamePack);
     const st = tool.querySelector('[data-try-game-status]');
-    if (st) st.textContent = 'Downloaded guide + CFG. Place them under game/csgo, then click Install & open CS2.';
+    if (st) st.textContent = 'Downloaded guide + CFG. Copy them into game/csgo (see steps), then click Download & open CS2.';
   });
   tool.querySelector('[data-try-game-go]')?.addEventListener('click', onTryGameGo);
 
