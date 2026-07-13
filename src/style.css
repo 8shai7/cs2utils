@@ -635,6 +635,35 @@ textarea {
   color: var(--accent-strong);
 }
 
+.range-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.range-row input[type='range'] {
+  flex: 1;
+}
+
+.range-num {
+  width: 74px;
+  flex: none;
+  padding: 0.4rem 0.5rem;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+}
+
+/* Hide the native number spinners for a cleaner look (still keyboard-adjustable). */
+.range-num::-webkit-outer-spin-button,
+.range-num::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.range-num {
+  -moz-appearance: textfield;
+}
+
 input[type='range'] {
   -webkit-appearance: none;
   appearance: none;

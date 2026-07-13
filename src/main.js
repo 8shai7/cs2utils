@@ -172,30 +172,45 @@ app.innerHTML = `
                 <span class="rgb-swatch" id="ed-color-swatch"></span>
                 <input id="ed-custom-color" type="color" value="#32fa32" aria-label="Color picker" />
               </div>
-              <label class="range-field rgb-slider"><span>R <output id="ed-r-val"></output></span><input id="ed-r" type="range" min="0" max="255" step="1" /></label>
-              <label class="range-field rgb-slider"><span>G <output id="ed-g-val"></output></span><input id="ed-g" type="range" min="0" max="255" step="1" /></label>
-              <label class="range-field rgb-slider"><span>B <output id="ed-b-val"></output></span><input id="ed-b" type="range" min="0" max="255" step="1" /></label>
+              <label class="range-field rgb-slider"><span>R</span><div class="range-row"><input id="ed-r" type="range" min="0" max="255" step="1" /><input id="ed-r-num" class="range-num" type="number" min="0" max="255" step="1" /></div></label>
+              <label class="range-field rgb-slider"><span>G</span><div class="range-row"><input id="ed-g" type="range" min="0" max="255" step="1" /><input id="ed-g-num" class="range-num" type="number" min="0" max="255" step="1" /></div></label>
+              <label class="range-field rgb-slider"><span>B</span><div class="range-row"><input id="ed-b" type="range" min="0" max="255" step="1" /><input id="ed-b-num" class="range-num" type="number" min="0" max="255" step="1" /></div></label>
             </div>
 
             <label class="field range-field">
-              <span>Size <output id="ed-length-val"></output></span>
-              <input id="ed-length" type="range" min="0" max="15" step="0.5" />
+              <span>Size</span>
+              <div class="range-row">
+                <input id="ed-length" type="range" min="0" max="15" step="0.5" />
+                <input id="ed-length-num" class="range-num" type="number" min="0" max="15" step="0.5" />
+              </div>
             </label>
             <label class="field range-field">
-              <span>Thickness <output id="ed-thickness-val"></output></span>
-              <input id="ed-thickness" type="range" min="0" max="6" step="0.1" />
+              <span>Thickness</span>
+              <div class="range-row">
+                <input id="ed-thickness" type="range" min="0" max="6" step="0.1" />
+                <input id="ed-thickness-num" class="range-num" type="number" min="0" max="6" step="0.1" />
+              </div>
             </label>
             <label class="field range-field">
-              <span>Gap <output id="ed-gap-val"></output></span>
-              <input id="ed-gap" type="range" min="-10" max="10" step="0.5" />
+              <span>Gap</span>
+              <div class="range-row">
+                <input id="ed-gap" type="range" min="-10" max="10" step="0.5" />
+                <input id="ed-gap-num" class="range-num" type="number" min="-10" max="10" step="0.5" />
+              </div>
             </label>
             <label class="field range-field">
-              <span>Outline thickness <output id="ed-outline-val"></output></span>
-              <input id="ed-outline" type="range" min="0" max="3" step="0.5" />
+              <span>Outline thickness</span>
+              <div class="range-row">
+                <input id="ed-outline" type="range" min="0" max="3" step="0.5" />
+                <input id="ed-outline-num" class="range-num" type="number" min="0" max="3" step="0.5" />
+              </div>
             </label>
             <label class="field range-field">
-              <span>Alpha <output id="ed-alpha-val"></output></span>
-              <input id="ed-alpha" type="range" min="0" max="255" step="5" />
+              <span>Alpha</span>
+              <div class="range-row">
+                <input id="ed-alpha" type="range" min="0" max="255" step="5" />
+                <input id="ed-alpha-num" class="range-num" type="number" min="0" max="255" step="1" />
+              </div>
             </label>
 
             <div class="editor-toggles">
@@ -767,11 +782,13 @@ const edCustomColorField = document.querySelector('#ed-custom-color-field');
 const edR = /** @type {HTMLInputElement} */ (document.querySelector('#ed-r'));
 const edG = /** @type {HTMLInputElement} */ (document.querySelector('#ed-g'));
 const edB = /** @type {HTMLInputElement} */ (document.querySelector('#ed-b'));
-const edRVal = document.querySelector('#ed-r-val');
-const edGVal = document.querySelector('#ed-g-val');
-const edBVal = document.querySelector('#ed-b-val');
 const edRgbVal = document.querySelector('#ed-rgb-val');
 const edColorSwatch = /** @type {HTMLElement} */ (document.querySelector('#ed-color-swatch'));
+
+/** Set a control's value without disturbing it while the user is typing in it. */
+function setControlValue(el, value) {
+  if (el && document.activeElement !== el) el.value = String(value);
+}
 const edLength = /** @type {HTMLInputElement} */ (document.querySelector('#ed-length'));
 const edThickness = /** @type {HTMLInputElement} */ (document.querySelector('#ed-thickness'));
 const edGap = /** @type {HTMLInputElement} */ (document.querySelector('#ed-gap'));
@@ -783,11 +800,30 @@ const edOutlineOn = /** @type {HTMLInputElement} */ (document.querySelector('#ed
 const edAlphaOn = /** @type {HTMLInputElement} */ (document.querySelector('#ed-alpha-on'));
 const edSharecode = /** @type {HTMLInputElement} */ (document.querySelector('#ed-sharecode'));
 const edCommands = /** @type {HTMLTextAreaElement} */ (document.querySelector('#ed-commands'));
-const edLengthVal = document.querySelector('#ed-length-val');
-const edThicknessVal = document.querySelector('#ed-thickness-val');
-const edGapVal = document.querySelector('#ed-gap-val');
-const edOutlineVal = document.querySelector('#ed-outline-val');
-const edAlphaVal = document.querySelector('#ed-alpha-val');
+const edLengthNum = /** @type {HTMLInputElement} */ (document.querySelector('#ed-length-num'));
+const edThicknessNum = /** @type {HTMLInputElement} */ (document.querySelector('#ed-thickness-num'));
+const edGapNum = /** @type {HTMLInputElement} */ (document.querySelector('#ed-gap-num'));
+const edOutlineNum = /** @type {HTMLInputElement} */ (document.querySelector('#ed-outline-num'));
+const edAlphaNum = /** @type {HTMLInputElement} */ (document.querySelector('#ed-alpha-num'));
+const edRNum = /** @type {HTMLInputElement} */ (document.querySelector('#ed-r-num'));
+const edGNum = /** @type {HTMLInputElement} */ (document.querySelector('#ed-g-num'));
+const edBNum = /** @type {HTMLInputElement} */ (document.querySelector('#ed-b-num'));
+
+const clampNum = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+
+// Paired slider + number-input fields (source of truth is the `editor` object).
+const EDITOR_FIELDS = [
+  { key: 'length', slider: edLength, num: edLengthNum, min: 0, max: 15 },
+  { key: 'thickness', slider: edThickness, num: edThicknessNum, min: 0, max: 6 },
+  { key: 'gap', slider: edGap, num: edGapNum, min: -10, max: 10 },
+  { key: 'outline', slider: edOutline, num: edOutlineNum, min: 0, max: 3 },
+  { key: 'alpha', slider: edAlpha, num: edAlphaNum, min: 0, max: 255 },
+];
+const RGB_FIELDS = [
+  { key: 'red', slider: edR, num: edRNum },
+  { key: 'green', slider: edG, num: edGNum },
+  { key: 'blue', slider: edB, num: edBNum },
+];
 
 /** @param {number} r @param {number} g @param {number} b */
 function rgbToHex(r, g, b) {
@@ -806,43 +842,45 @@ function hexToRgb(hex) {
 function syncColorControls() {
   const hex = rgbToHex(editor.red, editor.green, editor.blue);
   edColor.value = String(editor.color);
-  edCustomColor.value = hex;
-  edR.value = String(editor.red);
-  edG.value = String(editor.green);
-  edB.value = String(editor.blue);
-  if (edRVal) edRVal.textContent = String(editor.red);
-  if (edGVal) edGVal.textContent = String(editor.green);
-  if (edBVal) edBVal.textContent = String(editor.blue);
+  setControlValue(edCustomColor, hex);
+  for (const f of RGB_FIELDS) {
+    setControlValue(f.slider, editor[f.key]);
+    setControlValue(f.num, editor[f.key]);
+  }
   if (edRgbVal) edRgbVal.textContent = `${editor.red}, ${editor.green}, ${editor.blue}`;
   if (edColorSwatch) edColorSwatch.style.background = hex;
   edCustomColorField?.classList.toggle('hidden', editor.color !== 5);
 }
 
 /** Push the current editor state onto every control (used on init / reset). */
+/** Mirror the editor state onto each slider + number input. */
+function syncFieldsToState() {
+  for (const f of EDITOR_FIELDS) {
+    setControlValue(f.slider, clampNum(editor[f.key], f.min, f.max));
+    setControlValue(f.num, editor[f.key]);
+  }
+}
+
 function applyStateToControls() {
   edStyle.value = String(editor.style);
-  edLength.value = String(editor.length);
-  edThickness.value = String(editor.thickness);
-  edGap.value = String(editor.gap);
-  edOutline.value = String(editor.outline);
-  edAlpha.value = String(editor.alpha);
   edDot.checked = editor.centerDotEnabled;
   edTStyle.checked = editor.tStyleEnabled;
   edOutlineOn.checked = editor.outlineEnabled;
   edAlphaOn.checked = editor.alphaEnabled;
+  syncFieldsToState();
   syncColorControls();
 }
 
 /** Update the editor's own outputs (badges, code, commands) without touching the shared preview. */
 function renderEditorOutputs() {
-  edLengthVal.textContent = String(editor.length);
-  edThicknessVal.textContent = String(editor.thickness);
-  edGapVal.textContent = String(editor.gap);
-  edOutlineVal.textContent = String(editor.outline);
-  edAlphaVal.textContent = String(editor.alpha);
+  syncFieldsToState();
 
-  edOutline.disabled = !editor.outlineEnabled;
-  edAlpha.disabled = !editor.alphaEnabled;
+  const outlineOff = !editor.outlineEnabled;
+  edOutline.disabled = outlineOff;
+  edOutlineNum.disabled = outlineOff;
+  const alphaOff = !editor.alphaEnabled;
+  edAlpha.disabled = alphaOff;
+  edAlphaNum.disabled = alphaOff;
 
   try {
     edSharecode.value = encodeCrosshair(editor);
@@ -858,18 +896,40 @@ function renderEditor() {
   renderEditorOutputs();
 }
 
-/** Read the non-color controls into the editor state, then re-render. */
-function readEditorControls() {
+/** Style + checkboxes → editor state. */
+function readToggles() {
   editor.style = Number(edStyle.value);
-  editor.length = Number(edLength.value);
-  editor.thickness = Number(edThickness.value);
-  editor.gap = Number(edGap.value);
-  editor.outline = Number(edOutline.value);
-  editor.alpha = Number(edAlpha.value);
   editor.centerDotEnabled = edDot.checked;
   editor.tStyleEnabled = edTStyle.checked;
   editor.outlineEnabled = edOutlineOn.checked;
   editor.alphaEnabled = edAlphaOn.checked;
+  renderEditor();
+}
+
+function onFieldSlider(f) {
+  editor[f.key] = Number(f.slider.value);
+  renderEditor();
+}
+
+/** Typed number → editor state (clamped to the field's valid range). */
+function onFieldNum(f, commit) {
+  const raw = Number(f.num.value);
+  if (f.num.value === '' || !Number.isFinite(raw)) {
+    if (commit) f.num.value = String(editor[f.key]);
+    return;
+  }
+  editor[f.key] = clampNum(raw, f.min, f.max);
+  if (commit) f.num.value = String(editor[f.key]);
+  renderEditor();
+}
+
+/** Any RGB number input → full custom color. */
+function onRgbNum() {
+  editor.color = 5;
+  editor.red = clampNum(Number(edRNum.value) || 0, 0, 255);
+  editor.green = clampNum(Number(edGNum.value) || 0, 0, 255);
+  editor.blue = clampNum(Number(edBNum.value) || 0, 0, 255);
+  syncColorControls();
   renderEditor();
 }
 
@@ -907,15 +967,22 @@ function onColorPicker() {
   renderEditor();
 }
 
-[edStyle, edLength, edThickness, edGap, edOutline, edAlpha, edDot, edTStyle, edOutlineOn, edAlphaOn].forEach((el) => {
-  el.addEventListener('input', readEditorControls);
-  el.addEventListener('change', readEditorControls);
+EDITOR_FIELDS.forEach((f) => {
+  f.slider.addEventListener('input', () => onFieldSlider(f));
+  f.num.addEventListener('input', () => onFieldNum(f, false));
+  f.num.addEventListener('change', () => onFieldNum(f, true));
 });
+
+[edStyle, edDot, edTStyle, edOutlineOn, edAlphaOn].forEach((el) => el.addEventListener('change', readToggles));
 
 edColor.addEventListener('change', onColorSelect);
 edCustomColor.addEventListener('input', onColorPicker);
 edCustomColor.addEventListener('change', onColorPicker);
-[edR, edG, edB].forEach((el) => el.addEventListener('input', onRgbSlider));
+RGB_FIELDS.forEach((f) => {
+  f.slider.addEventListener('input', onRgbSlider);
+  f.num.addEventListener('input', onRgbNum);
+  f.num.addEventListener('change', onRgbNum);
+});
 
 document.querySelector('#ed-copy-code')?.addEventListener('click', () => {
   copyText(crosshairStatus, edSharecode.value, 'share code');
