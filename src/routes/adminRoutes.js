@@ -351,12 +351,14 @@ adminRoutes.get(
 
 adminRoutes.post(
   '/users/:id/role',
+  requireOwner,
   asyncHandler(async (req, res) => {
     const role = req.body?.role;
     if (role !== 'user' && role !== 'admin') throw new ApiError(400, 'Invalid role.');
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [req.params.id]);
     if (!rows.length) throw new ApiError(404, 'User not found.');
     if (rows[0].role === 'owner') throw new ApiError(400, 'The owner role cannot be changed.');
+    if (Number(rows[0].id) === Number(req.user.id)) throw new ApiError(400, 'You cannot change your own role.');
     const previous = rows[0].role;
     await pool.query('UPDATE users SET role = ? WHERE id = ?', [role, req.params.id]);
     const [updated] = await pool.query('SELECT * FROM users WHERE id = ?', [req.params.id]);
@@ -365,7 +367,7 @@ adminRoutes.post(
       action: 'user.role',
       entityType: 'user',
       entityId: updated[0].id,
-      summary: `Changed ${updated[0].username} role ${previous} → ${role}`,
+      summary: `${role === 'admin' ? 'Promoted' : 'Demoted'} ${updated[0].username} (${previous} → ${role})`,
       detail: { previous, role },
     });
     res.json({ user: publicUser(updated[0]) });

@@ -179,10 +179,25 @@ function usersHtml() {
   const users = cache.users || [];
   if (!users.length) return `<p class="hint">No users.</p>`;
   const now = Date.now();
+  const ownerCanPromote = isOwner(session);
   const rows = users
     .map((u) => {
       const banned = u.bannedUntil && new Date(u.bannedUntil).getTime() > now;
       const isOwnerRow = u.role === 'owner';
+      const roleActions = isOwnerRow
+        ? '<span class="hint">owner</span>'
+        : ownerCanPromote
+          ? u.role === 'admin'
+            ? `<button class="btn btn-sm ghost" type="button" data-role-set="${u.id}" data-role="user">Remove admin</button>`
+            : `<button class="btn btn-sm primary" type="button" data-role-set="${u.id}" data-role="admin">Promote to admin</button>`
+          : `<span class="hint">${esc(u.role)}</span>`;
+      const banActions = isOwnerRow
+        ? ''
+        : banned
+          ? `<button class="btn btn-sm" data-unban="${u.id}">Unban</button>`
+          : `<input type="number" min="1" placeholder="hrs" class="admin-ban-hrs" data-ban-hrs="${u.id}" />
+             <button class="btn btn-sm ghost" data-ban="${u.id}">Ban</button>
+             <button class="btn btn-sm danger" data-ban-perma="${u.id}">Ban forever</button>`;
       return `
         <div class="admin-user">
           <div class="admin-user-main">
@@ -193,26 +208,19 @@ function usersHtml() {
             ).toLocaleDateString()}</div>
           </div>
           <div class="admin-user-actions">
-            ${
-              isOwnerRow
-                ? '<span class="hint">owner</span>'
-                : `<select data-role="${u.id}">
-                     <option value="user" ${u.role === 'user' ? 'selected' : ''}>user</option>
-                     <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>admin</option>
-                   </select>
-                   ${
-                     banned
-                       ? `<button class="btn btn-sm" data-unban="${u.id}">Unban</button>`
-                       : `<input type="number" min="1" placeholder="hrs" class="admin-ban-hrs" data-ban-hrs="${u.id}" />
-                          <button class="btn btn-sm ghost" data-ban="${u.id}">Ban</button>
-                          <button class="btn btn-sm danger" data-ban-perma="${u.id}">Ban forever</button>`
-                   }`
-            }
+            ${roleActions}
+            ${banActions}
           </div>
         </div>`;
     })
     .join('');
-  return `<div class="admin-users">${rows}</div>`;
+  return `
+    ${
+      ownerCanPromote
+        ? '<p class="hint">As owner you can promote users to admin or remove admin access. Ban controls are available to all admins.</p>'
+        : '<p class="hint">Only the site owner can promote users to admin.</p>'
+    }
+    <div class="admin-users">${rows}</div>`;
 }
 
 function syncHtml() {
@@ -487,8 +495,15 @@ function wire() {
   );
 
   // Users
-  tool.querySelectorAll('[data-role]').forEach((sel) =>
-    sel.addEventListener('change', () => act(async () => { await api.admin.setRole(sel.dataset.role, sel.value); await reload(); }, 'Role updated.')),
+  tool.querySelectorAll('[data-role-set]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const role = b.dataset.role;
+      const label = role === 'admin' ? 'Promoted to admin.' : 'Admin access removed.';
+      act(async () => {
+        await api.admin.setRole(b.dataset.roleSet, role);
+        await reload();
+      }, label);
+    }),
   );
   tool.querySelectorAll('[data-unban]').forEach((b) =>
     b.addEventListener('click', () => act(async () => { await api.admin.unbanUser(b.dataset.unban); await reload(); }, 'User unbanned.')),

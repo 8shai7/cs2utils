@@ -1,4 +1,4 @@
-import { api, isAdmin, resolveMediaUrl } from './api.js';
+import { api, isAdmin, isOwner, resolveMediaUrl } from './api.js';
 import { getUser, subscribe } from './session.js';
 import { openAuth } from './headerAuth.js';
 import {
@@ -448,16 +448,24 @@ function banInfo(u) {
 
 function usersHtml() {
   if (!isAdmin(session)) return `<p class="hint">Admins only.</p>`;
+  const ownerCanPromote = isOwner(session);
   return `<div class="users-table">
+    ${
+      ownerCanPromote
+        ? '<p class="hint users-table-hint">Promote trusted users to admin, or remove admin access.</p>'
+        : '<p class="hint users-table-hint">Only the site owner can promote users to admin.</p>'
+    }
     ${usersData
       .map((u) => {
         const ban = banInfo(u);
         const roleCol =
           u.role === 'owner'
             ? '<span class="hint">owner</span>'
-            : u.role === 'admin'
-              ? `<button class="btn btn-sm ghost" data-role-user="${u.id}" data-role="user">Revoke admin</button>`
-              : `<button class="btn btn-sm" data-role-user="${u.id}" data-role="admin">Make admin</button>`;
+            : ownerCanPromote
+              ? u.role === 'admin'
+                ? `<button class="btn btn-sm ghost" data-role-user="${u.id}" data-role="user">Remove admin</button>`
+                : `<button class="btn btn-sm primary" data-role-user="${u.id}" data-role="admin">Promote to admin</button>`
+              : `<span class="hint">${esc(u.role)}</span>`;
         const banCol =
           u.role === 'owner'
             ? ''
