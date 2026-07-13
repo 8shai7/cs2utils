@@ -648,6 +648,7 @@ function readEditorControls() {
     editor.red = r;
     editor.green = g;
     editor.blue = b;
+    edCustomColor.value = rgbToHex(r, g, b);
   } else {
     const [r, g, b] = EDITOR_PRESET_COLORS[editor.color] ?? EDITOR_PRESET_COLORS[1];
     editor.red = r;
