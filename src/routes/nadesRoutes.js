@@ -59,6 +59,82 @@ async function withMedia(nadeRows, { onlyApproved = false } = {}) {
   return nadeRows.map((n) => serializeNade(n, byNade.get(n.id) || []));
 }
 
+// Favorite counts + current user's favorites (optional auth).
+nadesRoutes.get(
+  '/social',
+  optionalAuth,
+  asyncHandler(async (req, res) => {
+    const [countRows] = await pool.query(
+      'SELECT nade_id, COUNT(*) AS count FROM nade_favorites GROUP BY nade_id',
+    );
+    const counts = {};
+    for (const r of countRows) counts[r.nade_id] = Number(r.count);
+
+    let mine = [];
+    if (req.user) {
+      const [mineRows] = await pool.query('SELECT nade_id FROM nade_favorites WHERE user_id = ?', [req.user.id]);
+      mine = mineRows.map((r) => Number(r.nade_id));
+    }
+    res.json({ counts, mine });
+  }),
+);
+
+// Current user's favorited approved nades.
+nadesRoutes.get(
+  '/favorites',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { map, type } = req.query;
+    let sql = `SELECT n.*, u.username AS author_name
+      FROM nade_favorites f
+      JOIN nades n ON n.id = f.nade_id
+      JOIN users u ON u.id = n.author_id
+      WHERE f.user_id = ? AND n.status = 'approved'`;
+    const params = [req.user.id];
+    if (map && MAP_IDS.includes(map)) {
+      sql += ' AND n.map = ?';
+      params.push(map);
+    }
+    if (type && TYPE_IDS.includes(type)) {
+      sql += ' AND n.type = ?';
+      params.push(type);
+    }
+    sql += ' ORDER BY f.created_at DESC';
+    const [rows] = await pool.query(sql, params);
+    res.json({ nades: await withMedia(rows, { onlyApproved: true }) });
+  }),
+);
+
+// Toggle favorite on an approved nade.
+nadesRoutes.post(
+  '/:id/favorite',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const nadeId = Number(req.params.id);
+    if (!Number.isFinite(nadeId) || nadeId <= 0) throw new ApiError(400, 'Invalid nade.');
+    const [rows] = await pool.query('SELECT id, status FROM nades WHERE id = ?', [nadeId]);
+    if (!rows.length) throw new ApiError(404, 'Nade not found.');
+    if (rows[0].status !== 'approved') throw new ApiError(400, 'Only approved nades can be favorited.');
+
+    const [existing] = await pool.query('SELECT id FROM nade_favorites WHERE nade_id = ? AND user_id = ?', [
+      nadeId,
+      req.user.id,
+    ]);
+    let favorited;
+    if (existing.length) {
+      await pool.query('DELETE FROM nade_favorites WHERE id = ?', [existing[0].id]);
+      favorited = false;
+    } else {
+      await pool.query('INSERT INTO nade_favorites (nade_id, user_id) VALUES (?, ?)', [nadeId, req.user.id]);
+      favorited = true;
+    }
+    const [[{ count }]] = await pool.query('SELECT COUNT(*) AS count FROM nade_favorites WHERE nade_id = ?', [
+      nadeId,
+    ]);
+    res.json({ favorited, count: Number(count) });
+  }),
+);
+
 // Public: approved nades (with approved media only).
 nadesRoutes.get(
   '/',

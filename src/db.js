@@ -60,6 +60,18 @@ const SCHEMA = [
     CONSTRAINT fk_media_nade FOREIGN KEY (nade_id) REFERENCES nades(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
+  `CREATE TABLE IF NOT EXISTS nade_favorites (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nade_id INT NOT NULL,
+    user_id INT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_nade_user (nade_id, user_id),
+    INDEX idx_fav_user (user_id),
+    INDEX idx_fav_nade (nade_id),
+    CONSTRAINT fk_fav_nade FOREIGN KEY (nade_id) REFERENCES nades(id) ON DELETE CASCADE,
+    CONSTRAINT fk_fav_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
   `CREATE TABLE IF NOT EXISTS command_recommendations (
     id INT AUTO_INCREMENT PRIMARY KEY,
     command_key VARCHAR(64) NOT NULL,

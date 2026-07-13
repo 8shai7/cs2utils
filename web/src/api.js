@@ -237,6 +237,20 @@ export const api = {
       const data = await request('GET', '/nades/mine', undefined, { auth: true });
       return data.nades;
     },
+    async favorites({ map = '', type = '' } = {}) {
+      const q = new URLSearchParams();
+      if (map) q.set('map', map);
+      if (type) q.set('type', type);
+      const qs = q.toString();
+      const data = await request('GET', `/nades/favorites${qs ? `?${qs}` : ''}`, undefined, { auth: true });
+      return data.nades;
+    },
+    async social() {
+      return request('GET', '/nades/social', undefined, { auth: !!getToken() });
+    },
+    async favorite(id) {
+      return request('POST', `/nades/${id}/favorite`, {}, { auth: true });
+    },
     async create(input) {
       const data = await request('POST', '/nades', input, { auth: true });
       return data.nade;

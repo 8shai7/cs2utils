@@ -394,6 +394,10 @@ authRoutes.get(
       [uid],
     );
     const [[{ comments }]] = await pool.query('SELECT COUNT(*) AS comments FROM command_comments WHERE user_id = ?', [uid]);
+    const [[{ nadeFavorites }]] = await pool.query(
+      'SELECT COUNT(*) AS nadeFavorites FROM nade_favorites WHERE user_id = ?',
+      [uid],
+    );
 
     res.json({
       user: publicUser(rows[0]),
@@ -403,6 +407,7 @@ authRoutes.get(
         nadesPending: Number(nadesPending),
         recommendations: Number(recommendations),
         comments: Number(comments),
+        nadeFavorites: Number(nadeFavorites),
       },
     });
   }),

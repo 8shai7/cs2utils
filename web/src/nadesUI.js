@@ -34,6 +34,8 @@ let loading = false;
 let browseFilter = { map: '', type: '' };
 let browseData = [];
 let browseSelected = new Map(); // nadeId -> mapId
+let favoriteSocial = { counts: {}, mine: [] };
+let favoritesData = [];
 let mineData = [];
 let reviewData = [];
 let usersData = [];
@@ -130,12 +132,31 @@ async function updateReviewCount() {
   }
 }
 
+async function loadFavoriteSocial() {
+  try {
+    favoriteSocial = await api.nades.social();
+  } catch {
+    favoriteSocial = { counts: {}, mine: [] };
+  }
+}
+
 async function loadView(next) {
   view = next;
   loading = !['add', 'import'].includes(next);
   if (loading) render();
   try {
-    if (view === 'browse') browseData = await api.nades.list(browseFilter);
+    if (view === 'browse') {
+      browseData = await api.nades.list(browseFilter);
+      await loadFavoriteSocial();
+    }
+    if (view === 'favorites') {
+      if (session) {
+        favoritesData = await api.nades.favorites(browseFilter);
+        await loadFavoriteSocial();
+      } else {
+        favoritesData = [];
+      }
+    }
     if (view === 'mine' && session) mineData = await api.nades.mine();
     if (view === 'review' && isAdmin(session)) {
       reviewData = await api.admin.pending();
@@ -169,7 +190,7 @@ function mediaEmbed(m) {
 
 /* ---------------- views ---------------- */
 
-function nadeCardHtml(nade, { showStatus = false, showTryInGame = false, adminRemove = false } = {}) {
+function nadeCardHtml(nade, { showStatus = false, showTryInGame = false, adminRemove = false, showFavorite = false } = {}) {
   const t = typeInfo(nade.type);
   const media = (nade.media || []).filter((m) => (showStatus ? true : m.status === 'approved'));
   const mediaHtml = media.length
@@ -184,6 +205,14 @@ function nadeCardHtml(nade, { showStatus = false, showTryInGame = false, adminRe
     : `<p class="hint">No approved media yet — a 2D throw preview is shown above.</p>`;
 
   const selected = showTryInGame && browseSelected.has(nade.id);
+  const isFav = favoriteSocial.mine.includes(nade.id);
+  const favCount = favoriteSocial.counts[nade.id] || 0;
+  const favBtn = showFavorite
+    ? `<button class="btn btn-sm favorite ${isFav ? 'active' : ''}" type="button" data-favorite-nade="${nade.id}" title="${
+        isFav ? 'Remove from favorites' : 'Add to favorites'
+      }">${isFav ? '★ Favorited' : '☆ Favorite'}${favCount ? ` <span class="fav-count">${favCount}</span>` : ''}</button>`
+    : '';
+
   const tryBtn = showTryInGame
     ? `<div class="nade-card-actions">
          <label class="browse-nade-check">
@@ -192,6 +221,7 @@ function nadeCardHtml(nade, { showStatus = false, showTryInGame = false, adminRe
            } />
            <span>Select</span>
          </label>
+         ${favBtn}
          <button class="btn" type="button" data-try-nades="${nade.id}">Try in game</button>
          ${
            adminRemove && isAdmin(session)
@@ -199,14 +229,21 @@ function nadeCardHtml(nade, { showStatus = false, showTryInGame = false, adminRe
              : ''
          }
        </div>`
-    : adminRemove && isAdmin(session)
+    : favBtn || (adminRemove && isAdmin(session))
       ? `<div class="nade-card-actions">
-           <button class="btn ghost danger" type="button" data-delete-nade="${nade.id}">Remove</button>
+           ${favBtn}
+           ${
+             adminRemove && isAdmin(session)
+               ? `<button class="btn ghost danger" type="button" data-delete-nade="${nade.id}">Remove</button>`
+               : ''
+           }
          </div>`
       : '';
 
   return `
-    <article class="nade-card${showTryInGame ? ' browse-nade-card' : ''}${selected ? ' selected' : ''}"${
+    <article class="nade-card${showTryInGame ? ' browse-nade-card' : ''}${selected ? ' selected' : ''}${
+      isFav && showFavorite ? ' favorited' : ''
+    }"${
       showTryInGame ? ` data-browse-nade="${nade.id}" data-map="${esc(nade.map)}" tabindex="0" role="checkbox" aria-checked="${selected ? 'true' : 'false'}"` : ''
     }>
       <div class="nade-card-head">
@@ -235,7 +272,7 @@ function browseSelectedIds() {
 
 function browseHtml() {
   const cards = browseData.length
-    ? browseData.map((n) => nadeCardHtml(n, { showTryInGame: true, adminRemove: true })).join('')
+    ? browseData.map((n) => nadeCardHtml(n, { showTryInGame: true, adminRemove: true, showFavorite: true })).join('')
     : `<p class="hint">No approved nades yet${
         session ? ' — be the first to add one!' : ' — log in and add the nades you found.'
       }</p>`;
@@ -253,6 +290,33 @@ function browseHtml() {
     </div>
     <div class="browse-select-bar">
       <span class="hint">Click a lineup to select it (up to ${BROWSE_TRY_MAX}, same map) for one merged annotation file.</span>
+      <button class="btn ghost" type="button" id="browse-select-clear" ${selectedCount ? '' : 'disabled'}>Clear selection</button>
+      <button class="btn primary" type="button" id="browse-try-selected" ${selectedCount ? '' : 'disabled'}>
+        Try selected in game (${selectedCount}/${BROWSE_TRY_MAX})
+      </button>
+    </div>
+    <div class="nade-grid">${cards}</div>`;
+}
+
+function favoritesHtml() {
+  if (!session) return loginPrompt('save favorite nades');
+  const cards = favoritesData.length
+    ? favoritesData.map((n) => nadeCardHtml(n, { showTryInGame: true, adminRemove: true, showFavorite: true })).join('')
+    : `<p class="hint">No favorites yet — star lineups in Browse to save them here.</p>`;
+  const selectedCount = browseSelected.size;
+  return `
+    <div class="nades-filters">
+      <label class="field">
+        <span>Map</span>
+        <select id="filter-map"><option value="">All maps</option>${optionList(MAPS, browseFilter.map)}</select>
+      </label>
+      <label class="field">
+        <span>Type</span>
+        <select id="filter-type"><option value="">All types</option>${optionList(NADE_TYPES, browseFilter.type)}</select>
+      </label>
+    </div>
+    <div class="browse-select-bar">
+      <span class="hint">Your saved lineups. Select up to ${BROWSE_TRY_MAX} (same map) to try in game.</span>
       <button class="btn ghost" type="button" id="browse-select-clear" ${selectedCount ? '' : 'disabled'}>Clear selection</button>
       <button class="btn primary" type="button" id="browse-try-selected" ${selectedCount ? '' : 'disabled'}>
         Try selected in game (${selectedCount}/${BROWSE_TRY_MAX})
@@ -528,8 +592,12 @@ function usersHtml() {
 }
 
 function subnavHtml() {
+  const favCount = favoriteSocial.mine?.length || 0;
   const items = [['browse', 'Browse']];
-  if (session) items.push(['add', 'Add nade'], ['import', 'Import guide'], ['mine', 'My nades']);
+  if (session) {
+    items.push(['favorites', `Favorites${favCount ? ` (${favCount})` : ''}`]);
+    items.push(['add', 'Add nade'], ['import', 'Import guide'], ['mine', 'My nades']);
+  }
   if (isAdmin(session)) items.push(['review', `Review${reviewCount ? ` (${reviewCount})` : ''}`], ['users', 'Users']);
   return `<nav class="nades-subnav">${items
     .map(([id, label]) => `<button class="tool-tab ${view === id ? 'active' : ''}" data-view="${id}">${esc(label)}</button>`)
@@ -543,6 +611,8 @@ function viewBodyHtml() {
       return addHtml();
     case 'import':
       return guideImportHtml();
+    case 'favorites':
+      return favoritesHtml();
     case 'mine':
       return mineHtml();
     case 'review':
@@ -615,15 +685,15 @@ function wire() {
     b.addEventListener('click', () => loadView(b.dataset.view)),
   );
 
-  // Browse filters
+  // Browse / favorites filters
   tool.querySelector('#filter-map')?.addEventListener('change', (e) => {
     browseFilter.map = e.target.value;
     browseSelected = new Map();
-    loadView('browse');
+    loadView(view === 'favorites' ? 'favorites' : 'browse');
   });
   tool.querySelector('#filter-type')?.addEventListener('change', (e) => {
     browseFilter.type = e.target.value;
-    loadView('browse');
+    loadView(view === 'favorites' ? 'favorites' : 'browse');
   });
   tool.querySelectorAll('.browse-select').forEach((c) =>
     c.addEventListener('change', () => {
@@ -654,6 +724,12 @@ function wire() {
     b.addEventListener('click', (e) => {
       e.stopPropagation();
       onTryNades([Number(b.dataset.tryNades)]);
+    }),
+  );
+  tool.querySelectorAll('[data-favorite-nade]').forEach((b) =>
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onFavoriteNade(Number(b.dataset.favoriteNade));
     }),
   );
 
@@ -1023,6 +1099,28 @@ async function onTryNades(nadeIds) {
   }
 }
 
+async function onFavoriteNade(nadeId) {
+  if (!session) {
+    openAuth('login');
+    return;
+  }
+  if (!Number.isFinite(nadeId) || nadeId <= 0) return;
+  try {
+    const res = await api.nades.favorite(nadeId);
+    favoriteSocial.counts[nadeId] = res.count;
+    favoriteSocial.mine = res.favorited
+      ? [...favoriteSocial.mine.filter((id) => id !== nadeId), nadeId]
+      : favoriteSocial.mine.filter((id) => id !== nadeId);
+    if (view === 'favorites' && !res.favorited) {
+      favoritesData = favoritesData.filter((n) => n.id !== nadeId);
+    }
+    render();
+    setStatus(res.favorited ? 'Added to favorites.' : 'Removed from favorites.', 'ok');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+}
+
 function onTryGameOpen() {
   if (!tryGamePack) return;
   const st = tool.querySelector('[data-try-game-status]');
@@ -1174,7 +1272,7 @@ export async function initNadesTool() {
     session = user;
     await updateReviewCount();
     // Drop into a view the current role is allowed to see.
-    if (!session && ['add', 'import', 'mine', 'review', 'users'].includes(view)) view = 'browse';
+    if (!session && ['add', 'import', 'mine', 'favorites', 'review', 'users'].includes(view)) view = 'browse';
     if (session && !isAdmin(session) && ['review', 'users'].includes(view)) view = 'browse';
     await loadView(view);
   });

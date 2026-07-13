@@ -2528,8 +2528,19 @@ input[type='color'] {
   color: var(--accent-strong);
 }
 
-.rec-count {
+.btn.favorite.active {
+  background: rgba(240, 165, 0, 0.18);
+  border-color: rgba(240, 165, 0, 0.5);
+  color: var(--accent-strong);
+}
+
+.rec-count,
+.fav-count {
   opacity: 0.8;
+}
+
+.nade-card.favorited {
+  border-color: color-mix(in srgb, var(--accent, #f0a500) 35%, var(--panel-border));
 }
 
 .cmd-comments {
