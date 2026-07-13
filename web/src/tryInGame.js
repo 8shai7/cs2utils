@@ -36,7 +36,22 @@ export function downloadPracticePack(pack, opts = {}) {
 
 export function openSteamPractice(pack) {
   if (!pack?.steamUrl) throw new Error('Missing Steam launch URL.');
-  window.location.href = pack.steamUrl;
+  // Prefer a temporary <a> click — more reliable for steam:// than location.href,
+  // and keeps the AimKit tab in place.
+  const a = document.createElement('a');
+  a.href = pack.steamUrl;
+  a.rel = 'noopener';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+export async function copyPracticeConsoleCommand(pack) {
+  const cmd = pack?.consoleCommand;
+  if (!cmd) throw new Error('Missing console command.');
+  await navigator.clipboard.writeText(cmd);
+  return cmd;
 }
 
 export function readDownloadOptions(root) {
@@ -98,11 +113,15 @@ export function practicePackModalHtml(pack, { esc, lineupCount = 1 }) {
           <li>Click <strong>Open CS2</strong> — Steam starts a private <code>${esc(
             pack.deMap,
           )}</code> server with <code>+exec ${esc(pack.cfgBaseName)}</code>.</li>
+          <li class="hint">If CS2 was already open, it may ignore launch options — quit CS2 first, or paste this in the console (~): <code>${esc(
+            pack.consoleCommand || `map ${pack.deMap}; exec ${pack.cfgBaseName}`,
+          )}</code></li>
         </ol>
 
         <div class="try-game-actions actions">
           <button class="btn" type="button" data-try-game-download>Download selected</button>
           <button class="btn primary" type="button" data-try-game-open>Open CS2</button>
+          <button class="btn ghost" type="button" data-try-game-copy-cmd>Copy console cmd</button>
           <button class="btn ghost" type="button" data-try-game-close>Close</button>
         </div>
         <p class="hint try-game-status" data-try-game-status></p>

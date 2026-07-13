@@ -13,7 +13,13 @@ import {
   detectMediaKind,
 } from './nades.js';
 import { renderThrow, canvasPointToNormalized } from './throwCanvas.js';
-import { downloadPracticePack, openSteamPractice, practicePackModalHtml, readDownloadOptions } from './tryInGame.js';
+import {
+  copyPracticeConsoleCommand,
+  downloadPracticePack,
+  openSteamPractice,
+  practicePackModalHtml,
+  readDownloadOptions,
+} from './tryInGame.js';
 
 const CANVAS_SIZE = 360;
 const BROWSE_TRY_MAX = 100;
@@ -735,6 +741,7 @@ function wire() {
     }
   });
   tool.querySelector('[data-try-game-open]')?.addEventListener('click', onTryGameOpen);
+  tool.querySelector('[data-try-game-copy-cmd]')?.addEventListener('click', onTryGameCopyCmd);
 
   // My nades: add media / delete / try in game
   tool.querySelectorAll('[data-add-media]').forEach((b) =>
@@ -1021,7 +1028,23 @@ function onTryGameOpen() {
   const st = tool.querySelector('[data-try-game-status]');
   try {
     openSteamPractice(tryGamePack);
-    const msg = `Opening CS2 private ${tryGamePack.deMap}… (make sure annotation_load ${tryGamePack.loadName} is installed).`;
+    const msg = `Opening CS2 private ${tryGamePack.deMap}… Quit CS2 first if it was already running, otherwise paste in console: ${
+      tryGamePack.consoleCommand || `map ${tryGamePack.deMap}; exec ${tryGamePack.cfgBaseName}`
+    }`;
+    if (st) st.textContent = msg;
+    setStatus(msg, 'ok');
+  } catch (err) {
+    if (st) st.textContent = err.message;
+    setStatus(err.message, 'error');
+  }
+}
+
+async function onTryGameCopyCmd() {
+  if (!tryGamePack) return;
+  const st = tool.querySelector('[data-try-game-status]');
+  try {
+    const cmd = await copyPracticeConsoleCommand(tryGamePack);
+    const msg = `Copied: ${cmd}`;
     if (st) st.textContent = msg;
     setStatus(msg, 'ok');
   } catch (err) {

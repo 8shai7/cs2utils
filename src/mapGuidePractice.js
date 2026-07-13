@@ -49,13 +49,30 @@ export function buildPracticeCfg({ loadName }) {
 /**
  * Steam protocol URL that boots CS2 onto a private listen map, then execs our cfg.
  * The annotation .txt must already be under game/csgo/annotations/local/<name>/.
+ *
+ * Args MUST be URL-encoded: browsers / xdg-open truncate at the first space, so an
+ * unencoded `+map de_mirage` becomes just `+sv_lan` (or nothing) and CS2 opens to
+ * the main menu with no local server.
  */
 export function buildSteamPracticeUrl(mapId, cfgBaseName = 'aimkit_practice') {
   const de = deMapName(mapId);
   if (!de) return null;
-  // Args after "//" are passed to the CS2 client as launch options.
-  const args = `+sv_lan 1 +game_type 0 +game_mode 0 +map ${de} +exec ${cfgBaseName}`;
-  return `steam://rungameid/730//${args}`;
+  // Keep under Steam's ~128-byte decoded param buffer. Map first so a listen
+  // server always starts even if later tokens are dropped.
+  const args = `+map ${de} +sv_lan 1 +game_type 0 +game_mode 0 +exec ${cfgBaseName}`;
+  const encoded = args
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((token) => encodeURIComponent(token))
+    .join('%20');
+  return `steam://rungameid/730//${encoded}`;
+}
+
+/** In-game console fallback when Steam launch options are ignored (CS2 already open). */
+export function buildPracticeConsoleCommand(mapId, cfgBaseName = 'aimkit_practice') {
+  const de = deMapName(mapId);
+  if (!de) return null;
+  return `map ${de}; exec ${cfgBaseName}`;
 }
 
 /** Relative paths under game/csgo/ for writing via the File System Access API. */
@@ -228,6 +245,7 @@ export function buildPracticePack({ mapId, guideText, importId = null, loadName:
   const paths = practiceFilePaths(loadName, cfgBaseName);
   const cfgText = buildPracticeCfg({ loadName });
   const steamUrl = buildSteamPracticeUrl(mapId, cfgBaseName);
+  const consoleCommand = buildPracticeConsoleCommand(mapId, cfgBaseName);
 
   return {
     map: mapId,
@@ -237,6 +255,7 @@ export function buildPracticePack({ mapId, guideText, importId = null, loadName:
     guideText: text,
     cfgText,
     steamUrl,
+    consoleCommand,
     paths,
     steps: [
       `Copy the guide to game/csgo/${paths.guideRel}`,
