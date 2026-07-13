@@ -1,4 +1,4 @@
-// Frontend API client for the CS2 Utils backend.
+// Frontend API client for the AimKit backend.
 //
 // In dev, requests go to `/api` and Vite proxies them to the Node server. In
 // production set VITE_API_URL (e.g. https://api.yoursite.com/api) at build time.

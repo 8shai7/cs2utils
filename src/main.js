@@ -47,7 +47,7 @@ app.innerHTML = `
         <div class="hero-badge">Counter-Strike 2</div>
         <div class="account-menu" id="account-menu"></div>
       </div>
-      <h1>CS2 Utils</h1>
+      <h1>AimKit</h1>
       <p class="hero-sub">
         Crosshair code conversion with live preview, plus FPS sensitivity conversion
         that keeps your cm/360 the same across games.
@@ -350,7 +350,7 @@ app.innerHTML = `
 
     <footer class="footer">
       <section class="donate">
-        <p class="donate-label">Found CS2 Utils useful? Support the project:</p>
+        <p class="donate-label">Found AimKit useful? Support the project:</p>
         <div class="donate-actions">
           ${
             DONATE_PAYPAL_URL

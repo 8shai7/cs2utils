@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "CS2 Utils backend API: accounts, nades database, admin moderation (Node.js + MySQL)",
+  "description": "AimKit backend API: accounts, nades database, admin moderation (Node.js + MySQL)",
   "main": "src/index.js",
   "scripts": {
     "dev": "node --watch src/index.js",

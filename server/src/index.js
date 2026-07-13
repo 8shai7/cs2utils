@@ -39,7 +39,7 @@ app.use((err, _req, res, _next) => {
 initDb()
   .then(() => {
     app.listen(config.port, () => {
-      console.log(`[server] CS2 Utils API listening on http://localhost:${config.port}`);
+      console.log(`[server] AimKit API listening on http://localhost:${config.port}`);
       console.log(`[server] owner email: ${config.ownerEmail}`);
     });
   })

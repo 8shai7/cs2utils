@@ -2,7 +2,7 @@
 
 ## Cursor Cloud specific instructions
 
-CS2 Utils is now a **full-stack app**: a Vite vanilla-JS frontend (repo root) plus a Node.js/Express + MySQL backend (`server/`). There is no automated test suite or linter configured.
+AimKit (domain: aimkit.net; formerly "CS2 Utils") is a **full-stack app**: a Vite vanilla-JS frontend (repo root) plus a Node.js/Express + MySQL backend (`server/`). There is no automated test suite or linter configured.
 
 ### Services
 
