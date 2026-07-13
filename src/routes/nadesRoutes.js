@@ -267,7 +267,7 @@ nadesRoutes.post(
       ? req.body.nadeIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
       : [];
     if (!ids.length) throw new ApiError(400, 'Select at least one nade.');
-    if (ids.length > 30) throw new ApiError(400, 'Too many nades (max 30).');
+    if (ids.length > 100) throw new ApiError(400, 'Too many nades (max 100).');
 
     const placeholders = ids.map(() => '?').join(',');
     const [rows] = await pool.query(

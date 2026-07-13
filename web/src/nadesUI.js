@@ -16,7 +16,7 @@ import { renderThrow, canvasPointToNormalized } from './throwCanvas.js';
 import { downloadPracticePack, openSteamPractice, practicePackModalHtml, readDownloadOptions } from './tryInGame.js';
 
 const CANVAS_SIZE = 360;
-const BROWSE_TRY_MAX = 30;
+const BROWSE_TRY_MAX = 100;
 
 let tool;
 let session = null;
@@ -992,7 +992,7 @@ function updateBrowseSelectBar() {
 async function onTryNades(nadeIds) {
   const ids = [...new Set((nadeIds || []).map(Number).filter((id) => Number.isFinite(id) && id > 0))];
   if (!ids.length) {
-    setStatus('Select at least one lineup (max 30, same map).', 'error');
+    setStatus(`Select at least one lineup (max ${BROWSE_TRY_MAX}, same map).`, 'error');
     return;
   }
   if (ids.length > BROWSE_TRY_MAX) {
