@@ -105,10 +105,14 @@ app.innerHTML = `
         <section class="panel preview-panel">
           <div class="panel-head">
             <h2>Preview</h2>
-            <span class="panel-tag">Relative to full screen</span>
+            <span class="panel-tag" id="preview-mode-tag">Actual in-game size</span>
           </div>
           <div class="preview-stage">
             <canvas id="preview-canvas" width="280" height="280" aria-label="Crosshair preview"></canvas>
+          </div>
+          <div class="preview-modes" role="group" aria-label="Preview size">
+            <button type="button" class="pmode active" data-pmode="ingame" aria-selected="true">In-game</button>
+            <button type="button" class="pmode" data-pmode="fullscreen" aria-selected="false">Full screen</button>
           </div>
           <div class="preview-controls">
             <button type="button" id="magnifier-toggle" class="btn btn-sm ghost" aria-pressed="false" title="Turn on, then hover the preview to zoom in on tiny details">
@@ -442,13 +446,22 @@ const previewStats = document.querySelector('#preview-stats');
 const previewResSelect = /** @type {HTMLSelectElement} */ (document.querySelector('#preview-res'));
 const previewResScale = document.querySelector('#preview-res-scale');
 
-// The preview box represents the FULL screen: its backing store is 1080 units
-// tall (a 1080p screen), so the crosshair is drawn at its real size as a
-// fraction of the whole screen, then CSS-downscaled into the panel. This is
-// why crosshairs look small here — use the Magnifier to inspect the detail.
-const PREVIEW_BACKING = 1080;
-canvas.width = PREVIEW_BACKING;
-canvas.height = PREVIEW_BACKING;
+// Preview size mode:
+//  - 'ingame'     (default) draws the crosshair at its real in-game pixel size,
+//                 shown 1:1 in the box — how it actually looks while playing.
+//  - 'fullscreen' shows it as a true fraction of the whole monitor (tiny) using
+//                 a high-res backing that's downscaled — use the Magnifier.
+let previewMode = 'ingame';
+
+function applyPreviewBacking() {
+  const px = previewMode === 'fullscreen' ? 1080 : 280;
+  if (canvas.width !== px) {
+    canvas.width = px;
+    canvas.height = px;
+  }
+  canvas.style.imageRendering = previewMode === 'fullscreen' ? 'auto' : 'pixelated';
+}
+applyPreviewBacking();
 
 // Common CS2 resolutions. The crosshair scales with vertical resolution, so the
 // pixel scale is height / 1080 (1080p ≈ 1 unit per pixel).
@@ -465,11 +478,14 @@ const PREVIEW_RESOLUTIONS = [
 
 let lastPreviewCrosshair = null;
 
-// Canvas pixels per crosshair unit. The backing store represents a full 1080-unit
-// screen, so this maps the crosshair to a true fraction of the whole screen
-// (independent of the chosen resolution, matching how CS2 scales the crosshair).
+// Canvas pixels per crosshair unit.
+//  - 'ingame': res.h/1080 — real in-game pixel size shown 1:1 in the 280px box.
+//  - 'fullscreen': canvas.height/1080 — the box represents the whole screen, so
+//    the crosshair is a true fraction of it (resolution-independent).
 function previewScale() {
-  return canvas.height / 1080;
+  if (previewMode === 'fullscreen') return canvas.height / 1080;
+  const res = PREVIEW_RESOLUTIONS.find((r) => r.id === previewResSelect?.value) || PREVIEW_RESOLUTIONS[0];
+  return res.h / 1080;
 }
 
 const magnifier = initMagnifier({
@@ -496,6 +512,22 @@ function drawPreview(crosshair) {
   }
   magnifier.refresh();
 }
+
+function setPreviewMode(mode) {
+  previewMode = mode === 'fullscreen' ? 'fullscreen' : 'ingame';
+  applyPreviewBacking();
+  document.querySelectorAll('.pmode').forEach((b) => {
+    const active = b.dataset.pmode === previewMode;
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-selected', String(active));
+  });
+  const tag = document.querySelector('#preview-mode-tag');
+  if (tag) tag.textContent = previewMode === 'fullscreen' ? 'Relative to full screen' : 'Actual in-game size';
+  drawPreview(lastPreviewCrosshair);
+}
+
+document.querySelectorAll('.pmode').forEach((b) => b.addEventListener('click', () => setPreviewMode(b.dataset.pmode)));
+
 const crosshairStatus = document.querySelector('#crosshair-status');
 const sensitivityStatus = document.querySelector('#sensitivity-status');
 
