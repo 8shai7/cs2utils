@@ -32,6 +32,9 @@ export const config = {
   // the curated seed. HLTV itself is Cloudflare-protected and usually blocks
   // datacenter IPs, so direct scraping falls back to the seed.
   proSettingsSourceUrl: process.env.PRO_SETTINGS_SOURCE_URL || '',
+  // prosettings.net is reachable (no Cloudflare challenge) and has a full CS2
+  // settings table + team logos + per-player photos — used as the default source.
+  proSettingsListUrl: process.env.PRO_SETTINGS_LIST_URL || 'https://prosettings.net/lists/cs2/',
   hltvPlayersUrl: process.env.HLTV_PLAYERS_URL || 'https://www.hltv.org/stats/players',
   steamAppId: process.env.STEAM_APPID || '730',
   cs2VersionUrl:

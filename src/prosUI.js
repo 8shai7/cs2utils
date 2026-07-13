@@ -5,7 +5,9 @@ import { openImportModal } from './importModal.js';
 let tool;
 let session = null;
 let data = { pros: [], source: 'seed', lastSync: 0 };
-let sort = 'name';
+let sort = 'featured';
+let query = '';
+let searchTimer = null;
 let statusMsg = { text: '', kind: '' };
 
 function esc(str) {
@@ -28,7 +30,7 @@ function setStatus(text, kind = '') {
 
 async function load() {
   try {
-    data = await api.pros.list({ sort });
+    data = await api.pros.list({ sort, q: query });
   } catch (err) {
     setStatus(err.message, 'error');
   }
@@ -108,26 +110,26 @@ function render() {
       </div>
       <div class="configs-controls">
         <div class="sort-tabs">
+          <button class="tool-tab ${sort === 'featured' ? 'active' : ''}" data-sort="featured">Featured</button>
           <button class="tool-tab ${sort === 'name' ? 'active' : ''}" data-sort="name">Name</button>
           <button class="tool-tab ${sort === 'edpi' ? 'active' : ''}" data-sort="edpi">Lowest eDPI</button>
           <button class="tool-tab ${sort === 'edpi-desc' ? 'active' : ''}" data-sort="edpi-desc">Highest eDPI</button>
         </div>
-        <input id="pros-search" type="search" class="cfg-search" placeholder="Search player or team…" />
+        <input id="pros-search" type="search" class="cfg-search" placeholder="Search player or team…" value="${esc(query)}" />
       </div>
-      <p class="hint">Community-sourced approximations. HLTV blocks automated access from most hosts, so live sync may fall back to this list.</p>
+      <p class="hint">${
+        data.source === 'prosettings'
+          ? 'Live from prosettings.net.'
+          : data.source === 'seed'
+            ? 'Built-in list. Admins can sync live data from prosettings.net.'
+            : `Source: ${esc(data.source)}.`
+      }</p>
       <div class="pro-grid">
         ${data.pros.length ? data.pros.map(cardHtml).join('') : `<p class="hint">No pro settings yet.</p>`}
       </div>
       <div id="pros-status" class="status ${statusMsg.kind}">${esc(statusMsg.text)}</div>
     </div>`;
   wire();
-}
-
-function applySearch(q) {
-  const query = q.trim().toLowerCase();
-  tool.querySelectorAll('.pro-card').forEach((card) => {
-    card.classList.toggle('hidden', query && !card.dataset.search.includes(query));
-  });
 }
 
 function wire() {
@@ -137,7 +139,21 @@ function wire() {
       load();
     }),
   );
-  tool.querySelector('#pros-search')?.addEventListener('input', (e) => applySearch(e.target.value));
+  const search = tool.querySelector('#pros-search');
+  if (search) {
+    search.addEventListener('input', (e) => {
+      query = e.target.value;
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(async () => {
+        await load();
+        const s = tool.querySelector('#pros-search');
+        if (s) {
+          s.focus();
+          s.setSelectionRange(s.value.length, s.value.length);
+        }
+      }, 300);
+    });
+  }
   tool.querySelector('#pros-sync')?.addEventListener('click', onSync);
 }
 

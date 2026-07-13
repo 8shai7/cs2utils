@@ -8,6 +8,7 @@
 import { pool } from './db.js';
 import { config } from './config.js';
 import { PRO_SEED } from './proSettingsSeed.js';
+import { scrapeProSettings } from './scrapeProSettings.js';
 
 async function getMeta(k) {
   const [rows] = await pool.query('SELECT v FROM app_meta WHERE k = ?', [k]);
@@ -116,10 +117,11 @@ export async function getPros({ q = '', sort = 'name' } = {}) {
     const like = `%${q}%`;
     params.push(like, like);
   }
-  let order = 'player ASC';
-  if (sort === 'edpi') order = 'edpi ASC, player ASC';
+  let order = 'sort_order ASC, player ASC';
+  if (sort === 'name') order = 'player ASC';
+  else if (sort === 'edpi') order = 'edpi ASC, player ASC';
   else if (sort === 'edpi-desc') order = 'edpi DESC, player ASC';
-  const [rows] = await pool.query(`SELECT * FROM pro_settings ${where} ORDER BY ${order} LIMIT 500`, params);
+  const [rows] = await pool.query(`SELECT * FROM pro_settings ${where} ORDER BY ${order} LIMIT 400`, params);
   return {
     pros: rows.map(serialize),
     source: (await getMeta('pros_source')) || 'seed',
@@ -136,26 +138,6 @@ async function fetchJson(url) {
     if (!res.ok) throw new Error(`source returned HTTP ${res.status}`);
     const data = await res.json();
     return Array.isArray(data) ? data : Array.isArray(data?.pros) ? data.pros : [];
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-/** Best-effort HLTV reachability check (it is normally Cloudflare-blocked). */
-async function tryHltv() {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
-  try {
-    const res = await fetch(config.hltvPlayersUrl, {
-      signal: controller.signal,
-      headers: { 'User-Agent': 'Mozilla/5.0', accept: 'text/html' },
-    });
-    const text = await res.text();
-    if (res.status === 403 || /just a moment|cf-chl|cloudflare/i.test(text)) {
-      throw new Error('HLTV is Cloudflare-protected and blocked this host');
-    }
-    // A full HLTV parser is out of scope while the site blocks datacenter IPs.
-    throw new Error('HLTV reached but automated settings parsing is not enabled — configure PRO_SETTINGS_SOURCE_URL');
   } finally {
     clearTimeout(timeout);
   }
@@ -184,15 +166,16 @@ export async function importPros(content) {
 export async function syncPros({ force = false } = {}) {
   const source = (await getMeta('pros_source')) || 'seed';
   try {
-    const rows = config.proSettingsSourceUrl
-      ? normalize(await fetchJson(config.proSettingsSourceUrl), 'remote')
-      : await tryHltv(); // throws (HLTV blocked) → fallback below
+    // A JSON feed override takes priority; otherwise scrape prosettings.net.
+    const useRemote = Boolean(config.proSettingsSourceUrl);
+    const list = useRemote ? await fetchJson(config.proSettingsSourceUrl) : await scrapeProSettings();
+    const rows = normalize(list, useRemote ? 'remote' : 'prosettings');
     if (!rows || rows.length < 3) throw new Error('source returned too few players');
     await replaceAll(rows);
-    await setMeta('pros_source', config.proSettingsSourceUrl ? 'remote' : 'hltv');
+    await setMeta('pros_source', useRemote ? 'remote' : 'prosettings');
     await setMeta('pros_last_sync', String(Date.now()));
     await setMeta('pros_last_error', '');
-    return { synced: true, count: rows.length, source: config.proSettingsSourceUrl ? 'remote' : 'hltv' };
+    return { synced: true, count: rows.length, source: useRemote ? 'remote' : 'prosettings' };
   } catch (err) {
     await setMeta('pros_last_error', err.message);
     return { synced: false, reason: err.message, source };
