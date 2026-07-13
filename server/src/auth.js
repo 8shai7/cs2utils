@@ -46,6 +46,7 @@ export function publicUser(row) {
     role: row.role,
     createdAt: row.created_at,
     bannedUntil: row.banned_until || null,
+    avatarUrl: row.avatar_url || null,
   };
 }
 

@@ -15,6 +15,7 @@ export const config = {
   ownerEmail: (process.env.OWNER_EMAIL || 'shaital121@gmail.com').trim().toLowerCase(),
   corsOrigin: process.env.CORS_ORIGIN || '*',
   uploadDir: process.env.UPLOAD_DIR || 'uploads',
+  imgbbApiKey: process.env.IMGBB_API_KEY || '',
   // Contact form → email. On Hostinger set SMTP_* to your mailbox (e.g.
   // smtp.hostinger.com). Without SMTP configured, messages are still stored in DB.
   contactTo: process.env.CONTACT_TO || 'service@aimkit.net',

@@ -1,5 +1,5 @@
-import { api, isOwner } from './api.js';
-import { getUser, subscribe } from './session.js';
+import { api, isOwner, resolveMediaUrl } from './api.js';
+import { getUser, subscribe, refresh } from './session.js';
 import { openAuth } from './headerAuth.js';
 
 let tool;
@@ -94,10 +94,19 @@ function render() {
     <div class="profile-shell">
       <section class="panel profile-card">
         <div class="profile-head">
-          <div class="profile-avatar">${esc(initial)}</div>
+          <div class="profile-avatar">${
+            session.avatarUrl
+              ? `<img src="${esc(resolveMediaUrl(session.avatarUrl))}" alt="${esc(session.username)}" />`
+              : esc(initial)
+          }</div>
           <div>
             <h2 class="profile-name">${esc(session.username)} <span class="nade-badge ${esc(session.role)}">${esc(session.role)}</span></h2>
             <p class="hint">${esc(session.email)} · member since ${fmtDate(session.createdAt)}</p>
+            <div class="avatar-controls">
+              <input type="file" id="avatar-file" accept="image/*" hidden />
+              <button class="btn btn-sm" id="avatar-upload">${session.avatarUrl ? 'Change photo' : 'Upload photo'}</button>
+              ${session.avatarUrl ? '<button class="btn btn-sm ghost" id="avatar-remove">Remove</button>' : ''}
+            </div>
           </div>
         </div>
         <dl class="profile-stats">
@@ -113,6 +122,33 @@ function render() {
     </div>`;
 
   tool.querySelector('#set-save')?.addEventListener('click', onSaveSettings);
+
+  const fileInput = tool.querySelector('#avatar-file');
+  tool.querySelector('#avatar-upload')?.addEventListener('click', () => fileInput?.click());
+  fileInput?.addEventListener('change', (e) => onAvatarUpload(e.target.files?.[0]));
+  tool.querySelector('#avatar-remove')?.addEventListener('click', onAvatarRemove);
+}
+
+async function onAvatarUpload(file) {
+  if (!file) return;
+  setStatus('Uploading image…', '');
+  try {
+    await api.auth.uploadAvatar(file);
+    await refresh();
+    setStatus('Profile image updated.', 'ok');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+}
+
+async function onAvatarRemove() {
+  try {
+    await api.auth.setAvatar('');
+    await refresh();
+    setStatus('Profile image removed.', 'ok');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
 }
 
 async function onSaveSettings() {

@@ -187,6 +187,7 @@ const SCHEMA = [
 // Idempotent column migrations for tables that already exist.
 const MIGRATIONS = [
   'ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_until DATETIME NULL',
+  'ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500) NULL',
   'ALTER TABLE pro_settings ADD COLUMN IF NOT EXISTS photo VARCHAR(500) NULL',
   'ALTER TABLE pro_settings ADD COLUMN IF NOT EXISTS team_logo VARCHAR(500) NULL',
 ];

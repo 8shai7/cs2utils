@@ -1,6 +1,7 @@
 // Global header account menu + login/register modal, shown on every tool tab.
 
 import { getUser, subscribe, login, register, logout, refresh } from './session.js';
+import { resolveMediaUrl } from './api.js';
 
 let menuEl;
 let modalEl;
@@ -20,6 +21,7 @@ function renderMenu() {
   if (user) {
     menuEl.innerHTML = `
       <button class="account-chip" id="hdr-profile" title="View your profile">
+        ${user.avatarUrl ? `<img class="account-avatar" src="${esc(resolveMediaUrl(user.avatarUrl))}" alt="" />` : ''}
         <span class="account-name">${esc(user.username)}</span>
         <span class="nade-badge ${esc(user.role)}">${esc(user.role)}</span>
       </button>

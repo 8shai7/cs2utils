@@ -1,8 +1,16 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { pool } from '../db.js';
 import { config } from '../config.js';
 import { hashPassword, verifyPassword, signToken, publicUser, requireAuth, normalizeEmail } from '../auth.js';
 import { asyncHandler, ApiError, EMAIL_RE } from '../util.js';
+import { uploadToImgbb } from '../imgbb.js';
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => cb(null, /^image\//.test(file.mimetype)),
+});
 
 const OWNER_EMAIL = normalizeEmail(config.ownerEmail);
 
@@ -74,6 +82,37 @@ authRoutes.get(
     res.json({ user: publicUser(rows[0]) });
   }),
 );
+
+// Set or clear the current user's profile image.
+authRoutes.post(
+  '/avatar',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const url = (req.body?.url || '').trim();
+    if (url && !/^https?:\/\/\S+$/i.test(url) && !url.startsWith('/uploads/')) {
+      throw new ApiError(400, 'Invalid image URL.');
+    }
+    if (url.length > 500) throw new ApiError(400, 'Image URL is too long.');
+    await pool.query('UPDATE users SET avatar_url = ? WHERE id = ?', [url || null, req.user.id]);
+    const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [req.user.id]);
+    res.json({ user: publicUser(rows[0]) });
+  }),
+);
+
+// Upload a profile image to ImgBB and save the hosted URL.
+authRoutes.post('/avatar/upload', requireAuth, (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) return next(new ApiError(400, err.message));
+    if (!req.file) return next(new ApiError(400, 'No image uploaded.'));
+    uploadToImgbb(req.file.buffer)
+      .then(async (url) => {
+        await pool.query('UPDATE users SET avatar_url = ? WHERE id = ?', [url, req.user.id]);
+        const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [req.user.id]);
+        res.json({ user: publicUser(rows[0]) });
+      })
+      .catch((e) => next(new ApiError(400, e.message)));
+  });
+});
 
 // Profile: the current user's account plus contribution stats.
 authRoutes.get(

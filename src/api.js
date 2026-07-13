@@ -99,6 +99,16 @@ export const api = {
     async profile() {
       return request('GET', '/auth/profile', undefined, { auth: true });
     },
+    async setAvatar(url) {
+      const data = await request('POST', '/auth/avatar', { url }, { auth: true });
+      return data.user;
+    },
+    async uploadAvatar(file) {
+      const form = new FormData();
+      form.append('file', file);
+      const data = await request('POST', '/auth/avatar/upload', form, { auth: true });
+      return data.user;
+    },
   },
   settings: {
     async get() {
