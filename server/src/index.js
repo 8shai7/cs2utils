@@ -11,8 +11,10 @@ import { uploadsRoutes } from './routes/uploadsRoutes.js';
 import { commandsRoutes } from './routes/commandsRoutes.js';
 import { configsRoutes } from './routes/configsRoutes.js';
 import { highlightsRoutes } from './routes/highlightsRoutes.js';
+import { prosRoutes } from './routes/prosRoutes.js';
 import { settingsRoutes } from './routes/settingsRoutes.js';
 import { seedIfEmpty, syncFromSource, startCommandsScheduler, startCs2Watcher } from './commandsSync.js';
+import { seedProsIfEmpty, syncPros } from './proSettings.js';
 
 const app = express();
 
@@ -33,6 +35,7 @@ app.use('/api/nades', nadesRoutes);
 app.use('/api/commands', commandsRoutes);
 app.use('/api/configs', configsRoutes);
 app.use('/api/highlights', highlightsRoutes);
+app.use('/api/pros', prosRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/uploads', uploadsRoutes);
@@ -48,6 +51,9 @@ app.use((err, _req, res, _next) => {
 initDb()
   .then(async () => {
     await seedIfEmpty();
+    await seedProsIfEmpty();
+    // Best-effort pro settings sync (uses source if configured; else HLTV → falls back to seed).
+    syncPros({}).catch(() => {});
     // Best-effort initial sync (no-op if no source configured); never blocks boot.
     syncFromSource({})
       .then((r) => {

@@ -151,6 +151,25 @@ const SCHEMA = [
     CONSTRAINT fk_report_highlight FOREIGN KEY (highlight_id) REFERENCES highlights(id) ON DELETE CASCADE,
     CONSTRAINT fk_report_user FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  `CREATE TABLE IF NOT EXISTS pro_settings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    pkey VARCHAR(64) NOT NULL UNIQUE,
+    player VARCHAR(80) NOT NULL,
+    team VARCHAR(80) NULL,
+    dpi INT NULL,
+    sens FLOAT NULL,
+    edpi INT NULL,
+    zoom_sens FLOAT NULL,
+    hz INT NULL,
+    resolution VARCHAR(20) NULL,
+    aspect_ratio VARCHAR(12) NULL,
+    viewmodel_fov FLOAT NULL,
+    crosshair_code VARCHAR(64) NULL,
+    source VARCHAR(16) NOT NULL DEFAULT 'seed',
+    sort_order INT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 ];
 
 // Idempotent column migrations for tables that already exist.

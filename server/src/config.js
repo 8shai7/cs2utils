@@ -28,6 +28,11 @@ export const config = {
   commandsNewWindowDays: Number(process.env.COMMANDS_NEW_WINDOW_DAYS || 21),
   // CS2 update detection: poll the current build number and re-sync the command
   // catalog whenever CS2 ships a patch.
+  // Optional JSON feed of pro-player settings (e.g. HLTV-derived). Empty = use
+  // the curated seed. HLTV itself is Cloudflare-protected and usually blocks
+  // datacenter IPs, so direct scraping falls back to the seed.
+  proSettingsSourceUrl: process.env.PRO_SETTINGS_SOURCE_URL || '',
+  hltvPlayersUrl: process.env.HLTV_PLAYERS_URL || 'https://www.hltv.org/stats/players',
   steamAppId: process.env.STEAM_APPID || '730',
   cs2VersionUrl:
     process.env.CS2_VERSION_URL ||

@@ -22,6 +22,7 @@ import { initCommandsTool } from './commandsUI.js';
 import { initProfileTool } from './profileUI.js';
 import { initConfigsTool } from './configsUI.js';
 import { initHighlightsTool } from './highlightsUI.js';
+import { initProsTool } from './prosUI.js';
 import { initHeaderAuth } from './headerAuth.js';
 import { api } from './api.js';
 import { renderCrosshairPreview } from './preview.js';
@@ -82,6 +83,10 @@ app.innerHTML = `
         <button class="tool-tab" data-tool="highlights" role="tab" aria-selected="false">
           <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg>
           <span>Highlights</span>
+        </button>
+        <button class="tool-tab" data-tool="pros" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3"/><path d="M7 5H4v2a3 3 0 0 0 3 3"/></svg>
+          <span>Pros</span>
         </button>
       </nav>
       <p class="tool-desc" id="tool-desc"></p>
@@ -393,6 +398,8 @@ app.innerHTML = `
 
     <main id="highlights-tool" class="tool-view"></main>
 
+    <main id="pros-tool" class="tool-view"></main>
+
     <main id="profile-tool" class="tool-view"></main>
 
     <footer class="footer">
@@ -679,6 +686,7 @@ const TOOL_DESCRIPTIONS = {
   configs:
     'Share your CS2 configs and video settings, download other players\u2019 setups, and rate the best ones.',
   highlights: 'Share your best CS2 clips, watch the community\u2019s highlights, and report anything that breaks the rules.',
+  pros: 'Browse pro players\u2019 sensitivity, DPI, resolution and crosshair settings.',
   profile: 'Your account, contributions, and settings.',
 };
 
@@ -1179,5 +1187,6 @@ initNadesTool();
 initCommandsTool();
 initConfigsTool();
 initHighlightsTool();
+initProsTool();
 initProfileTool();
 loadDonate();

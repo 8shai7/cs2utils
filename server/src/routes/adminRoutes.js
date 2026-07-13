@@ -4,6 +4,7 @@ import { requireAuth, requireAdmin, requireOwner, publicUser } from '../auth.js'
 import { asyncHandler, ApiError } from '../util.js';
 import { withMedia } from './nadesRoutes.js';
 import { syncFromSource, checkCs2Build } from '../commandsSync.js';
+import { syncPros } from '../proSettings.js';
 import { getSettings, saveSettings } from '../settings.js';
 
 export const adminRoutes = Router();
@@ -48,6 +49,14 @@ adminRoutes.post(
   asyncHandler(async (_req, res) => {
     const result = await checkCs2Build({});
     res.json(result);
+  }),
+);
+
+// Manually sync pro-player settings from the configured source (or HLTV).
+adminRoutes.post(
+  '/pros/sync',
+  asyncHandler(async (_req, res) => {
+    res.json(await syncPros({ force: true }));
   }),
 );
 

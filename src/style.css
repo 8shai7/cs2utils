@@ -1133,6 +1133,87 @@ input[type='color'] {
   }
 }
 
+/* --- Pro settings --- */
+.pros-shell {
+  display: grid;
+  gap: 1rem;
+}
+
+.pro-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.9rem;
+}
+
+.pro-card {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.9rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  background: var(--panel);
+}
+
+.pro-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.pro-head h3 {
+  margin: 0;
+  font-size: 1.02rem;
+}
+
+.pro-head .hint {
+  margin: 0.15rem 0 0;
+}
+
+.pro-edpi {
+  text-align: center;
+  line-height: 1.1;
+}
+
+.pro-edpi span {
+  font-family: var(--mono);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--accent-strong);
+}
+
+.pro-edpi small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.pro-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.pro-stat {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.pro-stat dt {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.pro-stat dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+
 /* --- Highlights --- */
 .highlights-shell {
   display: grid;

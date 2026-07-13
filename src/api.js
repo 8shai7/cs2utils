@@ -105,6 +105,15 @@ export const api = {
       return request('GET', '/settings');
     },
   },
+  pros: {
+    async list({ q = '', sort = 'name' } = {}) {
+      const params = new URLSearchParams();
+      if (q) params.set('q', q);
+      if (sort) params.set('sort', sort);
+      const qs = params.toString();
+      return request('GET', `/pros${qs ? `?${qs}` : ''}`);
+    },
+  },
   configs: {
     async list({ sort = 'top', q = '' } = {}) {
       const params = new URLSearchParams();
@@ -216,6 +225,9 @@ export const api = {
     },
     async reviewHighlight(id, decision) {
       return request('POST', `/admin/highlights/${id}/review`, { decision }, { auth: true });
+    },
+    async syncPros() {
+      return request('POST', '/admin/pros/sync', {}, { auth: true });
     },
     async banUser(id, { hours, permanent }) {
       const data = await request('POST', `/admin/users/${id}/ban`, { hours, permanent }, { auth: true });
