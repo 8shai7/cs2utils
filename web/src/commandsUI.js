@@ -63,7 +63,18 @@ async function loadAll() {
 function commentsHtml(c) {
   const list = social.comments[c.key] || [];
   const listHtml = list.length
-    ? list.map((cm) => `<div class="cmd-comment"><strong>${esc(cm.username)}</strong><span>${esc(cm.body)}</span></div>`).join('')
+    ? list
+        .map(
+          (cm) => `<div class="cmd-comment">
+            <div class="cmd-comment-body"><strong>${esc(cm.username)}</strong><span>${esc(cm.body)}</span></div>
+            ${
+              isAdmin(session)
+                ? `<button class="btn btn-sm ghost danger" type="button" data-remove-comment="${cm.id}">Remove</button>`
+                : ''
+            }
+          </div>`,
+        )
+        .join('')
     : `<p class="hint">No comments yet.</p>`;
   const form = session
     ? `<form class="cmd-comment-form" data-comment-key="${esc(c.key)}">
@@ -149,6 +160,7 @@ function adminPanelHtml() {
             <div class="actions">
               <button class="btn btn-sm primary" data-approve-comment="${cm.id}">Approve</button>
               <button class="btn btn-sm ghost" data-reject-comment="${cm.id}">Reject</button>
+              <button class="btn btn-sm ghost danger" data-remove-comment="${cm.id}">Delete</button>
             </div>
           </div>`,
         )
@@ -223,6 +235,7 @@ function wire() {
   );
   tool.querySelectorAll('[data-approve-comment]').forEach((b) => b.addEventListener('click', () => onReviewComment(b.dataset.approveComment, 'approved')));
   tool.querySelectorAll('[data-reject-comment]').forEach((b) => b.addEventListener('click', () => onReviewComment(b.dataset.rejectComment, 'rejected')));
+  tool.querySelectorAll('[data-remove-comment]').forEach((b) => b.addEventListener('click', () => onRemoveComment(b.dataset.removeComment)));
   tool.querySelector('#cmd-search')?.addEventListener('input', (e) => applySearch(e.target.value));
   tool.querySelector('#cmd-sync')?.addEventListener('click', onSync);
   tool.querySelector('#cmd-check-cs2')?.addEventListener('click', onCheckCs2);
@@ -264,6 +277,18 @@ async function onReviewComment(id, decision) {
     await loadAll();
     render();
     setStatus(`Comment ${decision}.`, 'ok');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+}
+
+async function onRemoveComment(id) {
+  if (!confirm('Permanently delete this comment?')) return;
+  try {
+    await api.admin.removeComment(id);
+    await loadAll();
+    render();
+    setStatus('Comment deleted.', 'ok');
   } catch (err) {
     setStatus(err.message, 'error');
   }

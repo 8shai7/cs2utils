@@ -152,6 +152,17 @@ adminRoutes.post(
   }),
 );
 
+// Hard-delete a comment (any status, including approved).
+adminRoutes.delete(
+  '/comments/:id',
+  asyncHandler(async (req, res) => {
+    const [rows] = await pool.query('SELECT id FROM command_comments WHERE id = ?', [req.params.id]);
+    if (!rows.length) return res.json({ ok: true });
+    await pool.query('DELETE FROM command_comments WHERE id = ?', [req.params.id]);
+    res.json({ ok: true });
+  }),
+);
+
 // Bulk approve/reject nades (must be registered before /nades/:id/review).
 adminRoutes.post(
   '/nades/review-bulk',
@@ -237,6 +248,17 @@ adminRoutes.post(
   }),
 );
 
+// Hard-delete media (any status, including approved).
+adminRoutes.delete(
+  '/media/:mediaId',
+  asyncHandler(async (req, res) => {
+    const [rows] = await pool.query('SELECT id FROM nade_media WHERE id = ?', [req.params.mediaId]);
+    if (!rows.length) return res.json({ ok: true });
+    await pool.query('DELETE FROM nade_media WHERE id = ?', [req.params.mediaId]);
+    res.json({ ok: true });
+  }),
+);
+
 adminRoutes.get(
   '/users',
   asyncHandler(async (_req, res) => {
@@ -265,6 +287,14 @@ adminRoutes.get(
   asyncHandler(async (_req, res) => {
     const [rows] = await pool.query('SELECT * FROM contact_messages ORDER BY created_at DESC LIMIT 200');
     res.json({ messages: rows });
+  }),
+);
+
+adminRoutes.delete(
+  '/contact/:id',
+  asyncHandler(async (req, res) => {
+    await pool.query('DELETE FROM contact_messages WHERE id = ?', [req.params.id]);
+    res.json({ ok: true });
   }),
 );
 
