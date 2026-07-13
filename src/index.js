@@ -102,23 +102,28 @@ export async function initialize() {
   }
 }
 
-// Consumers await this before handling requests.
-export const ready = initialize();
+// `ready` always resolves to a status (never rejects) so a failed init surfaces
+// as a readable 500 instead of an unhandled rejection that crashes the function.
+export const ready = initialize()
+  .then(() => ({ ok: true }))
+  .catch((error) => {
+    console.error('[server] initialization failed:', error);
+    return { ok: false, error };
+  });
 
 export default app;
 
 // Start a standalone HTTP server unless we're running on a serverless platform
 // (Vercel imports `app`/`ready` from src via api/index.js instead).
 if (!process.env.VERCEL) {
-  ready
-    .then(() => {
-      app.listen(config.port, () => {
-        console.log(`[server] AimKit API listening on http://localhost:${config.port}`);
-        console.log(`[server] owner email: ${config.ownerEmail}`);
-      });
-    })
-    .catch((err) => {
-      console.error('[server] Failed to initialize database:', err.message);
+  ready.then((status) => {
+    if (!status.ok) {
+      console.error('[server] Failed to initialize database:', status.error?.message);
       process.exit(1);
+    }
+    app.listen(config.port, () => {
+      console.log(`[server] AimKit API listening on http://localhost:${config.port}`);
+      console.log(`[server] owner email: ${config.ownerEmail}`);
     });
+  });
 }

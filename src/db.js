@@ -8,7 +8,10 @@ export const pool = mysql.createPool({
   password: config.db.password,
   database: config.db.database,
   waitForConnections: true,
-  connectionLimit: 10,
+  // Keep the pool small on serverless (many function instances share the DB's
+  // max_connections); fail fast instead of hanging if the DB is unreachable.
+  connectionLimit: Number(process.env.DB_POOL_LIMIT || (process.env.VERCEL ? 3 : 10)),
+  connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT_MS || 10000),
   charset: 'utf8mb4_unicode_ci',
 });
 
