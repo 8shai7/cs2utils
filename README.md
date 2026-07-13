@@ -96,6 +96,27 @@ Open the server's URL (default `http://localhost:3001`). The server auto-serves
 If the frontend is hosted separately instead, build it with
 `VITE_API_URL=https://your-api-host/api` so it points at the backend.
 
+### Static frontend + API on a subdomain (keep your static host)
+
+If the main domain stays a static site (e.g. `public_html` on Hostinger), host the
+API separately and point the frontend at it:
+
+1. **API:** create a Node.js app (hPanel → Advanced → Node.js) for a subdomain
+   like `api.aimkit.net`, startup file `server/src/index.js`, and set its `.env`
+   (including `CORS_ORIGIN=https://aimkit.net,https://www.aimkit.net`,
+   `APP_URL=https://aimkit.net`, `API_URL=https://api.aimkit.net`).
+2. **Frontend:** build it pointing at that API, then upload `dist/` to the static
+   host:
+   ```bash
+   VITE_API_URL=https://api.aimkit.net/api npm run build
+   ```
+   All `/api` and `/uploads` requests then go to `api.aimkit.net` (CORS allows the
+   main domain). Rebuild + re-upload `dist/` whenever the frontend changes.
+
+> Symptom of a missing backend: the site loads but every `GET /api/...` returns
+> 404. Fix it by serving the API (single-server deploy above) or by pointing the
+> build at an API host with `VITE_API_URL`.
+
 ### Static frontend only (GitHub Pages)
 
 Push to [`8shai7/cs2utils`](https://github.com/8shai7/cs2utils) and enable GitHub
