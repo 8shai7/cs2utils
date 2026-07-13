@@ -309,7 +309,7 @@ nadesRoutes.post(
     try {
       res.json({
         pack: buildPracticePackFromNades(mapId, nades, {
-          loadName: `aimkit_${mapId}_browse_${ids[0]}`,
+          loadName: `aimkit_${mapId}_x${rows.length}_${ids[0]}`,
         }),
         source: 'nades',
       });
