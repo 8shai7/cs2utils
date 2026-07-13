@@ -20,6 +20,7 @@ let view = 'browse';
 let authMode = 'login';
 let statusMsg = { text: '', kind: '' };
 let reviewCount = 0;
+let loading = false;
 
 let browseFilter = { map: '', type: '' };
 let browseData = [];
@@ -107,6 +108,8 @@ async function refreshSession() {
 
 async function loadView(next) {
   view = next;
+  loading = next !== 'add';
+  if (loading) render();
   try {
     if (view === 'browse') browseData = await api.nades.list(browseFilter);
     if (view === 'mine' && session) mineData = await api.nades.mine();
@@ -118,6 +121,7 @@ async function loadView(next) {
   } catch (err) {
     setStatus(err.message, 'error');
   }
+  loading = false;
   render();
 }
 
@@ -201,8 +205,14 @@ function addHtml() {
   return `
     <div class="nade-add">
       <div class="nade-add-map">
+        <ol class="nade-steps">
+          <li>Pick the <strong>map</strong> and <strong>grenade type</strong> on the right.</li>
+          <li>Click the map once to drop your <strong>throw position</strong>.</li>
+          <li>Click again to set the <strong>landing spot</strong>.</li>
+          <li>Fill in the details, add optional media, and submit for review.</li>
+        </ol>
         <canvas id="nade-add-canvas" class="nade-canvas interactive" width="${CANVAS_SIZE}" height="${CANVAS_SIZE}"></canvas>
-        <p class="hint" id="nade-add-coords">Click the map to set the throw position, then click again for the landing spot.</p>
+        <p class="hint" id="nade-add-coords">Step 2: click the map to set your throw position.</p>
       </div>
       <form class="nade-add-form" id="nade-add-form">
         <label class="field"><span>Title</span><input id="add-title" type="text" maxlength="160" placeholder="A site smoke from T ramp" value="${esc(draft.title)}" /></label>
@@ -329,6 +339,7 @@ function subnavHtml() {
 }
 
 function viewBodyHtml() {
+  if (loading) return `<div class="nades-loading"><span class="spinner"></span> Loading…</div>`;
   switch (view) {
     case 'add':
       return addHtml();

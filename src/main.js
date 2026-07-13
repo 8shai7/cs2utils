@@ -49,11 +49,24 @@ app.innerHTML = `
         that keeps your cm/360 the same across games.
       </p>
       <nav class="tool-nav" role="tablist" aria-label="Tools">
-        <button class="tool-tab active" data-tool="crosshair" role="tab" aria-selected="true">Crosshair</button>
-        <button class="tool-tab" data-tool="sensitivity" role="tab" aria-selected="false">Sensitivity</button>
-        <button class="tool-tab" data-tool="psa" role="tab" aria-selected="false">PSA Calculator</button>
-        <button class="tool-tab" data-tool="nades" role="tab" aria-selected="false">Nades DB</button>
+        <button class="tool-tab active" data-tool="crosshair" role="tab" aria-selected="true">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
+          <span>Crosshair</span>
+        </button>
+        <button class="tool-tab" data-tool="sensitivity" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="6"/><line x1="12" y1="7" x2="12" y2="11"/></svg>
+          <span>Sensitivity</span>
+        </button>
+        <button class="tool-tab" data-tool="psa" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="4" y1="8" x2="20" y2="8"/><circle cx="9" cy="8" r="2.6" fill="currentColor" stroke="none"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="15" cy="16" r="2.6" fill="currentColor" stroke="none"/></svg>
+          <span>PSA Calculator</span>
+        </button>
+        <button class="tool-tab" data-tool="nades" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+          <span>Nades DB</span>
+        </button>
       </nav>
+      <p class="tool-desc" id="tool-desc"></p>
     </header>
 
     <main id="crosshair-tool" class="tool-view active">
@@ -585,10 +598,25 @@ function loadCs2ValorantExample() {
   updateSensitivity();
 }
 
-document.querySelectorAll('.tool-tab').forEach((tab) => {
+const TOOL_DESCRIPTIONS = {
+  crosshair:
+    'Convert a crosshair share code into console commands, build a code from commands, or design one visually with a live preview.',
+  sensitivity:
+    'Keep the same cm/360 aim feel across games — with custom yaw values and DPI changes handled for you.',
+  psa: 'Dial in your ideal sensitivity with a guided 7-round A/B test (Perfect Sensitivity Approximation).',
+  nades:
+    'Browse community grenade line-ups, or sign in to submit your own with a 2D throw guide, videos and photos.',
+};
+
+const toolDesc = document.querySelector('#tool-desc');
+function setToolDescription(tool) {
+  if (toolDesc) toolDesc.textContent = TOOL_DESCRIPTIONS[tool] || '';
+}
+
+document.querySelectorAll('.tool-nav .tool-tab').forEach((tab) => {
   tab.addEventListener('click', () => {
     const tool = tab.getAttribute('data-tool');
-    document.querySelectorAll('.tool-tab').forEach((t) => {
+    document.querySelectorAll('.tool-nav .tool-tab').forEach((t) => {
       const active = t.getAttribute('data-tool') === tool;
       t.classList.toggle('active', active);
       t.setAttribute('aria-selected', String(active));
@@ -596,8 +624,12 @@ document.querySelectorAll('.tool-tab').forEach((tab) => {
     document.querySelectorAll('.tool-view').forEach((view) => {
       view.classList.toggle('active', view.id === `${tool}-tool`);
     });
+    setToolDescription(tool);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   });
 });
+
+setToolDescription('crosshair');
 
 document.querySelectorAll('.converter-panel .tab').forEach((tab) => {
   tab.addEventListener('click', () => {
