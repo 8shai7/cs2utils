@@ -177,3 +177,101 @@ adminRoutes.post(
     res.json({ user: publicUser(updated[0]) });
   }),
 );
+
+const PERMANENT_UNTIL = '9999-12-31 23:59:59';
+
+// Ban a user for a number of hours, or permanently. Owner cannot be banned.
+adminRoutes.post(
+  '/users/:id/ban',
+  asyncHandler(async (req, res) => {
+    const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [req.params.id]);
+    if (!rows.length) throw new ApiError(404, 'User not found.');
+    if (rows[0].role === 'owner') throw new ApiError(400, 'The owner cannot be banned.');
+
+    const permanent = Boolean(req.body?.permanent);
+    let until;
+    if (permanent) {
+      until = PERMANENT_UNTIL;
+    } else {
+      const hours = Number(req.body?.hours);
+      if (!Number.isFinite(hours) || hours <= 0) throw new ApiError(400, 'Provide a positive ban duration in hours, or set permanent.');
+      until = new Date(Date.now() + hours * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+    }
+    await pool.query('UPDATE users SET banned_until = ? WHERE id = ?', [until, req.params.id]);
+    const [updated] = await pool.query('SELECT * FROM users WHERE id = ?', [req.params.id]);
+    res.json({ user: publicUser(updated[0]) });
+  }),
+);
+
+adminRoutes.post(
+  '/users/:id/unban',
+  asyncHandler(async (req, res) => {
+    const [rows] = await pool.query('SELECT id FROM users WHERE id = ?', [req.params.id]);
+    if (!rows.length) throw new ApiError(404, 'User not found.');
+    await pool.query('UPDATE users SET banned_until = NULL WHERE id = ?', [req.params.id]);
+    const [updated] = await pool.query('SELECT * FROM users WHERE id = ?', [req.params.id]);
+    res.json({ user: publicUser(updated[0]) });
+  }),
+);
+
+// --- Highlight report moderation ---
+adminRoutes.get(
+  '/highlights/reports',
+  asyncHandler(async (_req, res) => {
+    const [rows] = await pool.query(
+      `SELECT h.id, h.title, h.description, h.url, h.author_id, u.username AS author_name, h.created_at,
+              r.id AS report_id, r.reason, r.reporter_name, r.created_at AS reported_at
+       FROM highlight_reports r
+       JOIN highlights h ON h.id = r.highlight_id
+       JOIN users u ON u.id = h.author_id
+       WHERE r.status = 'open'
+       ORDER BY h.id, r.created_at ASC`,
+    );
+    const byHighlight = new Map();
+    for (const row of rows) {
+      if (!byHighlight.has(row.id)) {
+        byHighlight.set(row.id, {
+          id: row.id,
+          title: row.title,
+          description: row.description || '',
+          url: row.url,
+          authorId: row.author_id,
+          authorName: row.author_name,
+          createdAt: row.created_at,
+          reports: [],
+        });
+      }
+      byHighlight.get(row.id).reports.push({
+        id: row.report_id,
+        reason: row.reason || '',
+        reporterName: row.reporter_name,
+        reportedAt: row.reported_at,
+      });
+    }
+    res.json({ highlights: [...byHighlight.values()] });
+  }),
+);
+
+adminRoutes.get(
+  '/highlights/reports/count',
+  asyncHandler(async (_req, res) => {
+    const [[{ count }]] = await pool.query(
+      "SELECT COUNT(DISTINCT highlight_id) AS count FROM highlight_reports WHERE status = 'open'",
+    );
+    res.json({ count: Number(count) });
+  }),
+);
+
+adminRoutes.post(
+  '/highlights/:id/review',
+  asyncHandler(async (req, res) => {
+    const decision = req.body?.decision;
+    if (decision !== 'keep' && decision !== 'delete') throw new ApiError(400, 'Invalid decision.');
+    if (decision === 'delete') {
+      await pool.query('DELETE FROM highlights WHERE id = ?', [req.params.id]);
+    } else {
+      await pool.query("UPDATE highlight_reports SET status = 'reviewed' WHERE highlight_id = ?", [req.params.id]);
+    }
+    res.json({ ok: true });
+  }),
+);

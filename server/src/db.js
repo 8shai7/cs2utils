@@ -124,6 +124,38 @@ const SCHEMA = [
     CONSTRAINT fk_rating_config FOREIGN KEY (config_id) REFERENCES configs(id) ON DELETE CASCADE,
     CONSTRAINT fk_rating_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  `CREATE TABLE IF NOT EXISTS highlights (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    author_id INT NOT NULL,
+    title VARCHAR(160) NOT NULL,
+    description VARCHAR(1000) NULL,
+    url TEXT NOT NULL,
+    kind VARCHAR(10) NOT NULL DEFAULT 'video',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_author (author_id),
+    INDEX idx_created (created_at),
+    CONSTRAINT fk_highlight_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  `CREATE TABLE IF NOT EXISTS highlight_reports (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    highlight_id INT NOT NULL,
+    reporter_id INT NOT NULL,
+    reporter_name VARCHAR(80) NOT NULL,
+    reason VARCHAR(500) NULL,
+    status ENUM('open','reviewed') NOT NULL DEFAULT 'open',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_highlight_reporter (highlight_id, reporter_id),
+    INDEX idx_status (status),
+    CONSTRAINT fk_report_highlight FOREIGN KEY (highlight_id) REFERENCES highlights(id) ON DELETE CASCADE,
+    CONSTRAINT fk_report_user FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+];
+
+// Idempotent column migrations for tables that already exist.
+const MIGRATIONS = [
+  'ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_until DATETIME NULL',
 ];
 
 export async function initDb() {
@@ -131,6 +163,13 @@ export async function initDb() {
   try {
     for (const stmt of SCHEMA) {
       await conn.query(stmt);
+    }
+    for (const stmt of MIGRATIONS) {
+      try {
+        await conn.query(stmt);
+      } catch (err) {
+        console.warn('[db] migration skipped:', err.message);
+      }
     }
   } finally {
     conn.release();

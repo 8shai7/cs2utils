@@ -10,6 +10,7 @@ import { adminRoutes } from './routes/adminRoutes.js';
 import { uploadsRoutes } from './routes/uploadsRoutes.js';
 import { commandsRoutes } from './routes/commandsRoutes.js';
 import { configsRoutes } from './routes/configsRoutes.js';
+import { highlightsRoutes } from './routes/highlightsRoutes.js';
 import { settingsRoutes } from './routes/settingsRoutes.js';
 import { seedIfEmpty, syncFromSource, startCommandsScheduler, startCs2Watcher } from './commandsSync.js';
 
@@ -31,6 +32,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/nades', nadesRoutes);
 app.use('/api/commands', commandsRoutes);
 app.use('/api/configs', configsRoutes);
+app.use('/api/highlights', highlightsRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/uploads', uploadsRoutes);

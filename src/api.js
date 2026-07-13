@@ -125,6 +125,23 @@ export const api = {
       return request('DELETE', `/configs/${id}`, undefined, { auth: true });
     },
   },
+  highlights: {
+    async list({ q = '' } = {}) {
+      const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+      const data = await request('GET', `/highlights${qs}`, undefined, { auth: true });
+      return data.highlights;
+    },
+    async create(input) {
+      const data = await request('POST', '/highlights', input, { auth: true });
+      return data.highlight;
+    },
+    async report(id, reason) {
+      return request('POST', `/highlights/${id}/report`, { reason }, { auth: true });
+    },
+    async remove(id) {
+      return request('DELETE', `/highlights/${id}`, undefined, { auth: true });
+    },
+  },
   nades: {
     async list({ map = '', type = '' } = {}) {
       const q = new URLSearchParams();
@@ -188,6 +205,25 @@ export const api = {
     },
     async saveSettings(data) {
       return request('POST', '/admin/settings', data, { auth: true });
+    },
+    async highlightReports() {
+      const data = await request('GET', '/admin/highlights/reports', undefined, { auth: true });
+      return data.highlights;
+    },
+    async highlightReportsCount() {
+      const data = await request('GET', '/admin/highlights/reports/count', undefined, { auth: true });
+      return data.count;
+    },
+    async reviewHighlight(id, decision) {
+      return request('POST', `/admin/highlights/${id}/review`, { decision }, { auth: true });
+    },
+    async banUser(id, { hours, permanent }) {
+      const data = await request('POST', `/admin/users/${id}/ban`, { hours, permanent }, { auth: true });
+      return data.user;
+    },
+    async unbanUser(id) {
+      const data = await request('POST', `/admin/users/${id}/unban`, {}, { auth: true });
+      return data.user;
     },
     async pendingCount() {
       const data = await request('GET', '/admin/nades/pending/count', undefined, { auth: true });

@@ -298,23 +298,44 @@ function reviewHtml() {
     .join('')}</div>`;
 }
 
+function banInfo(u) {
+  if (!u.bannedUntil) return null;
+  const until = new Date(u.bannedUntil);
+  if (until.getTime() <= Date.now()) return null;
+  return until.getFullYear() >= 9999 ? 'permanently' : `until ${until.toLocaleString()}`;
+}
+
 function usersHtml() {
   if (!isAdmin(session)) return `<p class="hint">Admins only.</p>`;
   return `<div class="users-table">
     ${usersData
-      .map(
-        (u) => `<div class="user-row">
+      .map((u) => {
+        const ban = banInfo(u);
+        const roleCol =
+          u.role === 'owner'
+            ? '<span class="hint">owner</span>'
+            : u.role === 'admin'
+              ? `<button class="btn btn-sm ghost" data-role-user="${u.id}" data-role="user">Revoke admin</button>`
+              : `<button class="btn btn-sm" data-role-user="${u.id}" data-role="admin">Make admin</button>`;
+        const banCol =
+          u.role === 'owner'
+            ? ''
+            : ban
+              ? `<span class="nade-badge rejected">banned ${esc(ban)}</span> <button class="btn btn-sm ghost" data-unban="${u.id}">Unban</button>`
+              : `<select class="ban-duration" data-ban-dur="${u.id}">
+                   <option value="24">1 day</option>
+                   <option value="168">7 days</option>
+                   <option value="720">30 days</option>
+                   <option value="perma">Permanent</option>
+                 </select>
+                 <button class="btn btn-sm ghost" data-ban="${u.id}">Ban</button>`;
+        return `<div class="user-row">
           <div><strong>${esc(u.username)}</strong><br /><span class="hint">${esc(u.email)}</span></div>
           <div>${statusBadge(u.role)}</div>
-          <div>${
-            u.role === 'owner'
-              ? '<span class="hint">owner</span>'
-              : u.role === 'admin'
-                ? `<button class="btn ghost" data-role-user="${u.id}" data-role="user">Revoke admin</button>`
-                : `<button class="btn" data-role-user="${u.id}" data-role="admin">Make admin</button>`
-          }</div>
-        </div>`,
-      )
+          <div class="user-actions">${roleCol}</div>
+          <div class="user-actions">${banCol}</div>
+        </div>`;
+      })
       .join('')}
   </div>`;
 }
@@ -459,6 +480,13 @@ function wire() {
   tool.querySelectorAll('[data-role-user]').forEach((b) =>
     b.addEventListener('click', () => onSetRole(b.dataset.roleUser, b.dataset.role)),
   );
+  tool.querySelectorAll('[data-ban]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const sel = tool.querySelector(`[data-ban-dur="${b.dataset.ban}"]`);
+      onBan(b.dataset.ban, sel ? sel.value : '24');
+    }),
+  );
+  tool.querySelectorAll('[data-unban]').forEach((b) => b.addEventListener('click', () => onUnban(b.dataset.unban)));
 }
 
 /* ---------------- actions ---------------- */
@@ -551,6 +579,27 @@ async function onSetRole(userId, role) {
     await api.admin.setRole(userId, role);
     await loadView('users');
     setStatus('Role updated.', 'ok');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+}
+
+async function onBan(userId, duration) {
+  try {
+    if (duration === 'perma') await api.admin.banUser(userId, { permanent: true });
+    else await api.admin.banUser(userId, { hours: Number(duration) });
+    await loadView('users');
+    setStatus('User banned.', 'ok');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+}
+
+async function onUnban(userId) {
+  try {
+    await api.admin.unbanUser(userId);
+    await loadView('users');
+    setStatus('User unbanned.', 'ok');
   } catch (err) {
     setStatus(err.message, 'error');
   }
