@@ -50,6 +50,8 @@ function normalize(list, source) {
       aspectRatio: p.aspectRatio ? String(p.aspectRatio).slice(0, 12) : null,
       viewmodelFov: p.viewmodelFov != null ? Number(p.viewmodelFov) : null,
       crosshairCode: p.crosshairCode ? String(p.crosshairCode).slice(0, 64) : null,
+      photo: p.photo ? String(p.photo).slice(0, 500) : null,
+      teamLogo: p.teamLogo ? String(p.teamLogo).slice(0, 500) : null,
       source,
       sortOrder: order++,
     });
@@ -64,9 +66,9 @@ async function replaceAll(rows) {
     await conn.query('DELETE FROM pro_settings');
     for (const r of rows) {
       await conn.query(
-        `INSERT INTO pro_settings (pkey, player, team, dpi, sens, edpi, zoom_sens, hz, resolution, aspect_ratio, viewmodel_fov, crosshair_code, source, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [r.key, r.player, r.team, r.dpi, r.sens, r.edpi, r.zoomSens, r.hz, r.resolution, r.aspectRatio, r.viewmodelFov, r.crosshairCode, r.source, r.sortOrder],
+        `INSERT INTO pro_settings (pkey, player, team, dpi, sens, edpi, zoom_sens, hz, resolution, aspect_ratio, viewmodel_fov, crosshair_code, photo, team_logo, source, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [r.key, r.player, r.team, r.dpi, r.sens, r.edpi, r.zoomSens, r.hz, r.resolution, r.aspectRatio, r.viewmodelFov, r.crosshairCode, r.photo, r.teamLogo, r.source, r.sortOrder],
       );
     }
     await conn.commit();
@@ -100,6 +102,8 @@ function serialize(row) {
     aspectRatio: row.aspect_ratio,
     viewmodelFov: row.viewmodel_fov,
     crosshairCode: row.crosshair_code,
+    photo: row.photo,
+    teamLogo: row.team_logo,
     source: row.source,
   };
 }

@@ -166,6 +166,8 @@ const SCHEMA = [
     aspect_ratio VARCHAR(12) NULL,
     viewmodel_fov FLOAT NULL,
     crosshair_code VARCHAR(64) NULL,
+    photo VARCHAR(500) NULL,
+    team_logo VARCHAR(500) NULL,
     source VARCHAR(16) NOT NULL DEFAULT 'seed',
     sort_order INT NOT NULL DEFAULT 0,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -175,6 +177,8 @@ const SCHEMA = [
 // Idempotent column migrations for tables that already exist.
 const MIGRATIONS = [
   'ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_until DATETIME NULL',
+  'ALTER TABLE pro_settings ADD COLUMN IF NOT EXISTS photo VARCHAR(500) NULL',
+  'ALTER TABLE pro_settings ADD COLUMN IF NOT EXISTS team_logo VARCHAR(500) NULL',
 ];
 
 export async function initDb() {

@@ -34,6 +34,40 @@ async function load() {
   render();
 }
 
+const TEAM_COLORS = {
+  'natus vincere': '#f4d000',
+  vitality: '#f5d20a',
+  falcons: '#0aa14f',
+  'team spirit': '#c8102e',
+  astralis: '#e4002b',
+  faze: '#e43b26',
+  g2: '#c8102e',
+};
+
+function teamColor(team) {
+  return TEAM_COLORS[(team || '').toLowerCase()] || '#33415a';
+}
+
+function monogram(p) {
+  const t = (p.team || p.player || '?').trim();
+  const words = t.split(/\s+/);
+  const ini = words.length > 1 ? words.slice(0, 3).map((w) => w[0]).join('') : t.slice(0, 2);
+  return ini.toUpperCase();
+}
+
+function photoHtml(p) {
+  // Prefer the player photo, fall back to the team logo, then a team-coloured
+  // monogram badge (revealed if the images fail to load / aren't provided).
+  const primary = p.photo || p.teamLogo || '';
+  const fallbackLogo = p.photo && p.teamLogo ? p.teamLogo : '';
+  const img = primary
+    ? `<img class="pro-img" alt="${esc(p.player)}" loading="lazy" src="${esc(primary)}"${
+        fallbackLogo ? ` data-logo="${esc(fallbackLogo)}"` : ''
+      } onerror="if(this.dataset.logo){this.src=this.dataset.logo;this.removeAttribute('data-logo');}else{this.remove();}" />`
+    : '';
+  return `<div class="pro-photo" style="--team:${teamColor(p.team)}"><span class="pro-monogram">${esc(monogram(p))}</span>${img}</div>`;
+}
+
 function stat(label, value) {
   return `<div class="pro-stat"><dt>${esc(label)}</dt><dd>${value != null && value !== '' ? esc(value) : '—'}</dd></div>`;
 }
@@ -42,6 +76,7 @@ function cardHtml(p) {
   const search = `${p.player} ${p.team || ''}`.toLowerCase();
   return `
     <article class="pro-card" data-search="${esc(search)}">
+      ${photoHtml(p)}
       <div class="pro-head">
         <div>
           <h3>${esc(p.player)}</h3>
