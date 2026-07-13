@@ -1478,6 +1478,45 @@ input[type='color'] {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #5b8cff) 40%, transparent);
 }
 
+.nade-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.55rem;
+}
+
+.browse-try-field {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.review-bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+  margin-bottom: 0.85rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.review-bulk-bar #review-bulk-note {
+  flex: 1 1 180px;
+  min-width: 140px;
+}
+
+.review-select-all,
+.review-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  user-select: none;
+}
+
 .try-game-modal {
   position: fixed;
   inset: 0;
@@ -1528,7 +1567,7 @@ input[type='color'] {
 }
 
 .review-actions {
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: auto 1fr auto auto;
   align-items: center;
 }
 

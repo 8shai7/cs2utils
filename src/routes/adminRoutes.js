@@ -152,6 +152,34 @@ adminRoutes.post(
   }),
 );
 
+// Bulk approve/reject nades (must be registered before /nades/:id/review).
+adminRoutes.post(
+  '/nades/review-bulk',
+  asyncHandler(async (req, res) => {
+    const decision = req.body?.decision;
+    if (decision !== 'approved' && decision !== 'rejected') throw new ApiError(400, 'Invalid decision.');
+    const note = (req.body?.note || '').slice(0, 255);
+    const ids = Array.isArray(req.body?.ids)
+      ? [...new Set(req.body.ids.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0))]
+      : [];
+    if (!ids.length) throw new ApiError(400, 'Select at least one nade.');
+    if (ids.length > 100) throw new ApiError(400, 'Too many nades (max 100).');
+
+    const placeholders = ids.map(() => '?').join(',');
+    const [result] = await pool.query(
+      `UPDATE nades SET status = ?, reviewed_by = ?, review_note = ? WHERE id IN (${placeholders}) AND status = 'pending'`,
+      [decision, req.user.username, note || null, ...ids],
+    );
+    if (decision === 'approved') {
+      await pool.query(
+        `UPDATE nade_media SET status = 'approved' WHERE status = 'pending' AND nade_id IN (${placeholders})`,
+        ids,
+      );
+    }
+    res.json({ ok: true, updated: result.affectedRows || 0 });
+  }),
+);
+
 adminRoutes.post(
   '/nades/:id/review',
   asyncHandler(async (req, res) => {
@@ -174,6 +202,26 @@ adminRoutes.post(
       ]);
     }
     res.json({ ok: true });
+  }),
+);
+
+adminRoutes.post(
+  '/media/review-bulk',
+  asyncHandler(async (req, res) => {
+    const decision = req.body?.decision;
+    if (decision !== 'approved' && decision !== 'rejected') throw new ApiError(400, 'Invalid decision.');
+    const ids = Array.isArray(req.body?.ids)
+      ? [...new Set(req.body.ids.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0))]
+      : [];
+    if (!ids.length) throw new ApiError(400, 'Select at least one media item.');
+    if (ids.length > 100) throw new ApiError(400, 'Too many media items (max 100).');
+
+    const placeholders = ids.map(() => '?').join(',');
+    const [result] = await pool.query(
+      `UPDATE nade_media SET status = ? WHERE id IN (${placeholders}) AND status = 'pending'`,
+      [decision, ...ids],
+    );
+    res.json({ ok: true, updated: result.affectedRows || 0 });
   }),
 );
 
