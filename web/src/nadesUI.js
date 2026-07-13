@@ -177,11 +177,12 @@ function nadeCardHtml(nade, { showStatus = false, showTryInGame = false } = {}) 
         .join('')}</div>`
     : `<p class="hint">No approved media yet — a 2D throw preview is shown above.</p>`;
 
+  const selected = showTryInGame && browseSelected.has(nade.id);
   const tryBtn = showTryInGame
     ? `<div class="nade-card-actions">
          <label class="browse-nade-check">
            <input type="checkbox" class="browse-select" value="${nade.id}" data-map="${esc(nade.map)}" ${
-             browseSelected.has(nade.id) ? 'checked' : ''
+             selected ? 'checked' : ''
            } />
            <span>Select</span>
          </label>
@@ -190,7 +191,9 @@ function nadeCardHtml(nade, { showStatus = false, showTryInGame = false } = {}) 
     : '';
 
   return `
-    <article class="nade-card">
+    <article class="nade-card${showTryInGame ? ' browse-nade-card' : ''}${selected ? ' selected' : ''}"${
+      showTryInGame ? ` data-browse-nade="${nade.id}" data-map="${esc(nade.map)}" tabindex="0" role="checkbox" aria-checked="${selected ? 'true' : 'false'}"` : ''
+    }>
       <div class="nade-card-head">
         <div>
           <h3>${esc(nade.title)}</h3>
@@ -234,7 +237,7 @@ function browseHtml() {
       </label>
     </div>
     <div class="browse-select-bar">
-      <span class="hint">Select up to ${BROWSE_TRY_MAX} lineups (same map) to merge into one annotation file.</span>
+      <span class="hint">Click a lineup to select it (up to ${BROWSE_TRY_MAX}, same map) for one merged annotation file.</span>
       <button class="btn ghost" type="button" id="browse-select-clear" ${selectedCount ? '' : 'disabled'}>Clear selection</button>
       <button class="btn primary" type="button" id="browse-try-selected" ${selectedCount ? '' : 'disabled'}>
         Try selected in game (${selectedCount}/${BROWSE_TRY_MAX})
@@ -580,8 +583,23 @@ function wire() {
     loadView('browse');
   });
   tool.querySelectorAll('.browse-select').forEach((c) =>
-    c.addEventListener('change', () => onBrowseSelectToggle(c)),
+    c.addEventListener('change', () => {
+      onBrowseSelectToggle(Number(c.value), c.dataset.map, c.checked);
+      syncBrowseCard(c.closest('.browse-nade-card'));
+    }),
   );
+  tool.querySelectorAll('.browse-nade-card').forEach((card) => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('a, button, input, label')) return;
+      toggleBrowseCard(card);
+    });
+    card.addEventListener('keydown', (e) => {
+      if (e.key !== ' ' && e.key !== 'Enter') return;
+      if (e.target.closest('a, button, input, label')) return;
+      e.preventDefault();
+      toggleBrowseCard(card);
+    });
+  });
   tool.querySelector('#browse-select-clear')?.addEventListener('click', () => {
     browseSelected = new Map();
     render();
@@ -590,7 +608,10 @@ function wire() {
     onTryNades(browseSelectedIds());
   });
   tool.querySelectorAll('[data-try-nades]').forEach((b) =>
-    b.addEventListener('click', () => onTryNades([Number(b.dataset.tryNades)])),
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onTryNades([Number(b.dataset.tryNades)]);
+    }),
   );
 
   // Add form
@@ -870,33 +891,51 @@ async function onTryImport(importId) {
   }
 }
 
-function onBrowseSelectToggle(checkbox) {
-  const id = Number(checkbox.value);
-  const map = checkbox.dataset.map;
-  if (!Number.isFinite(id) || id <= 0) return;
+function onBrowseSelectToggle(id, map, wantSelected) {
+  if (!Number.isFinite(id) || id <= 0) return false;
 
-  if (!checkbox.checked) {
+  if (!wantSelected) {
     browseSelected.delete(id);
     updateBrowseSelectBar();
-    return;
+    return true;
   }
 
   if (browseSelected.size >= BROWSE_TRY_MAX && !browseSelected.has(id)) {
-    checkbox.checked = false;
     setStatus(`You can select at most ${BROWSE_TRY_MAX} lineups.`, 'error');
-    return;
+    return false;
   }
 
   for (const [, selectedMap] of browseSelected) {
     if (selectedMap !== map) {
-      checkbox.checked = false;
       setStatus('Selected lineups must be on the same map.', 'error');
-      return;
+      return false;
     }
   }
 
   browseSelected.set(id, map);
   updateBrowseSelectBar();
+  return true;
+}
+
+function syncBrowseCard(card) {
+  if (!card) return;
+  const id = Number(card.dataset.browseNade);
+  const on = browseSelected.has(id);
+  card.classList.toggle('selected', on);
+  card.setAttribute('aria-checked', on ? 'true' : 'false');
+  const checkbox = card.querySelector('.browse-select');
+  if (checkbox) checkbox.checked = on;
+}
+
+function toggleBrowseCard(card) {
+  const id = Number(card.dataset.browseNade);
+  const map = card.dataset.map;
+  const wantSelected = !browseSelected.has(id);
+  const ok = onBrowseSelectToggle(id, map, wantSelected);
+  if (!ok && wantSelected) {
+    // Validation failed — keep unselected.
+  }
+  syncBrowseCard(card);
 }
 
 function updateBrowseSelectBar() {

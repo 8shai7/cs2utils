@@ -1271,6 +1271,26 @@ input[type='color'] {
   align-content: start;
 }
 
+.browse-nade-card {
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.browse-nade-card:hover {
+  border-color: color-mix(in srgb, var(--accent, #5b8cff) 45%, var(--panel-border));
+}
+
+.browse-nade-card:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent, #5b8cff) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.browse-nade-card.selected {
+  border-color: color-mix(in srgb, var(--accent, #5b8cff) 75%, var(--panel-border));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #5b8cff) 45%, transparent);
+  background: color-mix(in srgb, var(--accent, #5b8cff) 8%, var(--panel));
+}
+
 .nade-mine {
   gap: 0.5rem;
 }
