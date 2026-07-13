@@ -580,6 +580,72 @@ textarea {
   margin: 0;
 }
 
+/* Floating donate buttons (always visible) */
+.donate-fab {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.donate-fab-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+}
+
+.donate-fab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.95rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-decoration: none;
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  transition: transform 150ms ease;
+}
+
+.donate-fab-btn:hover {
+  transform: translateY(-2px);
+}
+
+.donate-fab-btn .donate-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.donate-fab-btn.paypal {
+  background: #0070ba;
+}
+
+.donate-fab-btn.steam {
+  background: linear-gradient(180deg, #2a475e, #1b2838);
+  color: #c7d5e0;
+}
+
+@media (max-width: 640px) {
+  .donate-fab-btn span {
+    display: none;
+  }
+  .donate-fab-btn {
+    padding: 0.65rem;
+  }
+  .donate-fab-label {
+    display: none;
+  }
+}
+
 .layout-sensitivity {
   grid-template-columns: 300px 1fr;
 }

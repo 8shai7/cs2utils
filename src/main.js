@@ -409,6 +409,8 @@ app.innerHTML = `
       </section>
       <p class="footer-note">Not affiliated with Valve. Share codes and yaw values are community-verified.</p>
     </footer>
+
+    <div class="donate-fab hidden" id="donate-fab" aria-label="Support AimKit"></div>
   </div>
 `;
 
@@ -1170,6 +1172,24 @@ function renderDonate(settings) {
   }
   actions.innerHTML = buttons.join('');
   section.classList.toggle('hidden', buttons.length === 0);
+
+  // Floating always-visible donate buttons.
+  const fab = document.querySelector('#donate-fab');
+  if (fab) {
+    const fabButtons = [];
+    if (settings.paypalUrl) {
+      fabButtons.push(
+        `<a class="donate-fab-btn paypal" href="${escAttr(settings.paypalUrl)}" target="_blank" rel="noopener noreferrer" title="Donate via PayPal">${PAYPAL_ICON}<span>PayPal</span></a>`,
+      );
+    }
+    if (settings.steamTradeUrl) {
+      fabButtons.push(
+        `<a class="donate-fab-btn steam" href="${escAttr(settings.steamTradeUrl)}" target="_blank" rel="noopener noreferrer" title="Donate Steam skins">${STEAM_ICON}<span>Steam</span></a>`,
+      );
+    }
+    fab.innerHTML = fabButtons.length ? `<span class="donate-fab-label">Support AimKit</span>${fabButtons.join('')}` : '';
+    fab.classList.toggle('hidden', fabButtons.length === 0);
+  }
 }
 
 async function loadDonate() {
