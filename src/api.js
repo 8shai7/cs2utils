@@ -229,6 +229,12 @@ export const api = {
     async syncPros() {
       return request('POST', '/admin/pros/sync', {}, { auth: true });
     },
+    async importCommands(content) {
+      return request('POST', '/admin/commands/import', { content }, { auth: true });
+    },
+    async importPros(content) {
+      return request('POST', '/admin/pros/import', { content }, { auth: true });
+    },
     async banUser(id, { hours, permanent }) {
       const data = await request('POST', `/admin/users/${id}/ban`, { hours, permanent }, { auth: true });
       return data.user;

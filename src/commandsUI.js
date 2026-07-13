@@ -1,6 +1,7 @@
 import { api, isAdmin } from './api.js';
 import { getUser, subscribe } from './session.js';
 import { openAuth } from './headerAuth.js';
+import { openImportModal } from './importModal.js';
 
 let tool;
 let session = null;
@@ -268,16 +269,21 @@ async function onReviewComment(id, decision) {
   }
 }
 
-async function onSync() {
-  setStatus('Syncing command catalog from the wiki…', '');
-  try {
-    const res = await api.admin.syncCommands();
-    await loadAll();
-    render();
-    setStatus(res.synced ? `Synced ${res.count} commands from ${res.source}.` : `Sync skipped: ${res.reason}`, res.synced ? 'ok' : 'error');
-  } catch (err) {
-    setStatus(err.message, 'error');
-  }
+function onSync() {
+  openImportModal({
+    title: 'Sync commands from the CS2 wiki',
+    description:
+      'The Valve wiki has a bot check that blocks servers. Open it in your browser, complete the verification, then copy the page source (wikitext) and paste it here — the server will parse it.',
+    sourceUrl: 'https://developer.valvesoftware.com/w/index.php?title=List_of_Counter-Strike_2_console_command_variables&action=raw',
+    sourceLabel: 'Open CS2 wiki source',
+    placeholder: 'Paste the wiki page source (wikitext), or a JSON list of commands…',
+    onImport: async (content) => {
+      const res = await api.admin.importCommands(content);
+      await loadAll();
+      render();
+      return `Imported ${res.count} commands.`;
+    },
+  });
 }
 
 async function onCheckCs2() {

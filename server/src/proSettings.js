@@ -161,6 +161,26 @@ async function tryHltv() {
   }
 }
 
+/** Import pro settings from JSON an admin pasted (after passing HLTV's bot check). */
+export async function importPros(content) {
+  const text = String(content || '').trim();
+  if (!text) throw new Error('Paste the pro settings JSON first.');
+  let list;
+  try {
+    const data = JSON.parse(text);
+    list = Array.isArray(data) ? data : data.pros || [];
+  } catch {
+    throw new Error('Pro settings import expects JSON (an array of players).');
+  }
+  const rows = normalize(list, 'import');
+  if (rows.length < 1) throw new Error('No valid players found in the pasted JSON.');
+  await replaceAll(rows);
+  await setMeta('pros_source', 'import');
+  await setMeta('pros_last_sync', String(Date.now()));
+  await setMeta('pros_last_error', '');
+  return { count: rows.length };
+}
+
 export async function syncPros({ force = false } = {}) {
   const source = (await getMeta('pros_source')) || 'seed';
   try {

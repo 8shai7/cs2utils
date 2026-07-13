@@ -3,8 +3,8 @@ import { pool } from '../db.js';
 import { requireAuth, requireAdmin, requireOwner, publicUser } from '../auth.js';
 import { asyncHandler, ApiError } from '../util.js';
 import { withMedia } from './nadesRoutes.js';
-import { syncFromSource, checkCs2Build } from '../commandsSync.js';
-import { syncPros } from '../proSettings.js';
+import { syncFromSource, checkCs2Build, importCommands } from '../commandsSync.js';
+import { syncPros, importPros } from '../proSettings.js';
 import { getSettings, saveSettings } from '../settings.js';
 
 export const adminRoutes = Router();
@@ -57,6 +57,30 @@ adminRoutes.post(
   '/pros/sync',
   asyncHandler(async (_req, res) => {
     res.json(await syncPros({ force: true }));
+  }),
+);
+
+// Browser-assisted imports: the admin passes the site's bot check in their own
+// browser, then pastes the page content here for the server to parse.
+adminRoutes.post(
+  '/commands/import',
+  asyncHandler(async (req, res) => {
+    try {
+      res.json(await importCommands(req.body?.content));
+    } catch (err) {
+      throw new ApiError(400, err.message);
+    }
+  }),
+);
+
+adminRoutes.post(
+  '/pros/import',
+  asyncHandler(async (req, res) => {
+    try {
+      res.json(await importPros(req.body?.content));
+    } catch (err) {
+      throw new ApiError(400, err.message);
+    }
   }),
 );
 

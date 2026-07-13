@@ -1,5 +1,6 @@
 import { api, isAdmin } from './api.js';
 import { getUser, subscribe } from './session.js';
+import { openImportModal } from './importModal.js';
 
 let tool;
 let session = null;
@@ -140,15 +141,20 @@ function wire() {
   tool.querySelector('#pros-sync')?.addEventListener('click', onSync);
 }
 
-async function onSync() {
-  setStatus('Syncing pro settings…', '');
-  try {
-    const res = await api.admin.syncPros();
-    await load();
-    setStatus(res.synced ? `Synced ${res.count} players from ${res.source}.` : `Sync unavailable: ${res.reason}`, res.synced ? 'ok' : 'error');
-  } catch (err) {
-    setStatus(err.message, 'error');
-  }
+function onSync() {
+  openImportModal({
+    title: 'Import pro settings from HLTV',
+    description:
+      'HLTV has a Cloudflare check that blocks servers. Open HLTV in your browser, complete the verification, then paste a JSON list of players here. Each item: {"player","team","dpi","sens","zoomSens","hz","resolution","aspectRatio","photo","teamLogo"}.',
+    sourceUrl: 'https://www.hltv.org/stats/players',
+    sourceLabel: 'Open HLTV',
+    placeholder: '[{"player":"s1mple","team":"Natus Vincere","dpi":400,"sens":3.09,"hz":1000,"resolution":"1280x960","aspectRatio":"4:3"}]',
+    onImport: async (content) => {
+      const res = await api.admin.importPros(content);
+      await load();
+      return `Imported ${res.count} players.`;
+    },
+  });
 }
 
 export async function initProsTool() {

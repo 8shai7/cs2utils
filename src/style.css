@@ -143,6 +143,25 @@ button.account-chip:hover {
   gap: 0.85rem;
 }
 
+.import-card {
+  width: min(580px, 100%);
+}
+
+.import-steps {
+  margin: 0.5rem 0 0.75rem;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.45rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.import-card textarea {
+  min-height: 150px;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+
 .login-prompt {
   display: grid;
   gap: 0.75rem;

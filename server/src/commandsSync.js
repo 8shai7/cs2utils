@@ -9,7 +9,7 @@
 import { pool } from './db.js';
 import { config } from './config.js';
 import { CATEGORIES, SEED_COMMANDS, RECOMMENDED_LAUNCH_OPTIONS } from './commandsSeed.js';
-import { scrapeWikiCommands } from './scrapeWiki.js';
+import { scrapeWikiCommands, parseWikiCommands } from './scrapeWiki.js';
 
 const KEY_RE = /^[a-z0-9-]{2,64}$/;
 const CATEGORY_IDS = new Set(CATEGORIES.map((c) => c.id));
@@ -180,6 +180,36 @@ export async function syncFromSource({ force = false } = {}) {
     await setMeta('commands_last_error', err.message);
     return { synced: false, reason: err.message, source };
   }
+}
+
+/**
+ * Import commands from content an admin pasted after passing the wiki's bot check
+ * in their own browser. Accepts wiki wikitext or a JSON list of commands.
+ */
+export async function importCommands(content) {
+  const text = String(content || '').trim();
+  if (!text) throw new Error('Paste the wiki page source first.');
+
+  let parsed;
+  if (text[0] === '[' || text[0] === '{') {
+    const data = JSON.parse(text);
+    parsed = Array.isArray(data) ? data : data.commands || [];
+  } else {
+    parsed = parseWikiCommands(text);
+  }
+  const scraped = normalize(parsed, 'import');
+  if (scraped.length < 3) throw new Error('Could not find enough commands in the pasted content.');
+
+  const launch = normalize(SEED_LAUNCH_OPTIONS, 'import');
+  const have = new Set(scraped.map((r) => r.key));
+  const merged = [...launch.filter((l) => !have.has(l.key)), ...scraped];
+  merged.forEach((r, i) => (r.sort_order = i));
+
+  await replaceCatalog(merged, 'import');
+  await setMeta('commands_source', 'import');
+  await setMeta('commands_last_sync', String(Date.now()));
+  await setMeta('commands_last_error', '');
+  return { count: merged.length };
 }
 
 export async function getCatalog() {
