@@ -28,6 +28,7 @@ import { openContactModal } from './contactModal.js';
 import { api, adoptToken } from './api.js';
 import { refresh as refreshSession } from './session.js';
 import { renderCrosshairPreview } from './preview.js';
+import { initMagnifier } from './magnifier.js';
 import {
   GAMES,
   convertSensitivity,
@@ -103,6 +104,20 @@ app.innerHTML = `
           </div>
           <div class="preview-stage">
             <canvas id="preview-canvas" width="280" height="280" aria-label="Crosshair preview"></canvas>
+          </div>
+          <div class="preview-controls">
+            <button type="button" id="magnifier-toggle" class="btn btn-sm ghost" aria-pressed="false" title="Turn on, then hover the preview to zoom in on tiny details">
+              <svg class="btn-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M10.5 3a7.5 7.5 0 1 0 4.55 13.46L20 21m-9.5-5a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11ZM10.5 8v5M8 10.5h5"/></svg>
+              Magnifier
+            </button>
+            <label class="magnifier-zoom">Zoom
+              <select id="magnifier-zoom" aria-label="Magnifier zoom level">
+                <option value="2">2×</option>
+                <option value="4" selected>4×</option>
+                <option value="6">6×</option>
+                <option value="8">8×</option>
+              </select>
+            </label>
           </div>
           <label class="field preview-res-field">
             <span>Resolution <output id="preview-res-scale"></output></span>
@@ -442,10 +457,18 @@ function previewScale() {
   return res.h / 1080;
 }
 
+const magnifier = initMagnifier({
+  source: canvas,
+  stage: document.querySelector('.preview-stage'),
+  toggleBtn: document.querySelector('#magnifier-toggle'),
+  zoomSelect: /** @type {HTMLSelectElement} */ (document.querySelector('#magnifier-zoom')),
+});
+
 function drawPreview(crosshair) {
   lastPreviewCrosshair = crosshair;
   renderCrosshairPreview(canvas, crosshair, previewScale());
   if (previewResScale) previewResScale.textContent = `${previewScale().toFixed(2)}× scale`;
+  magnifier.refresh();
 }
 const crosshairStatus = document.querySelector('#crosshair-status');
 const sensitivityStatus = document.querySelector('#sensitivity-status');

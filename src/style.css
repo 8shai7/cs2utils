@@ -395,6 +395,58 @@ button.account-chip:hover {
   display: grid;
   place-items: center;
   padding: 1.2rem;
+  position: relative;
+}
+
+.preview-stage.magnifier-on #preview-canvas {
+  cursor: none;
+}
+
+.magnifier-lens {
+  position: absolute;
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  border: 2px solid var(--accent-strong);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  image-rendering: pixelated;
+  z-index: 5;
+}
+
+.magnifier-lens.hidden {
+  display: none;
+}
+
+.preview-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0 1.2rem;
+  margin-bottom: 0.9rem;
+}
+
+.preview-controls .btn-icon {
+  vertical-align: -2px;
+  margin-right: 0.3rem;
+}
+
+#magnifier-toggle.active {
+  border-color: var(--accent-strong);
+  color: var(--accent-strong);
+}
+
+.magnifier-zoom {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--muted, #9aa4b2);
+}
+
+.magnifier-zoom select {
+  padding: 0.25rem 0.4rem;
 }
 
 #preview-canvas {
