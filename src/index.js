@@ -28,7 +28,11 @@ app.use(
 app.use(express.json({ limit: '1mb' }));
 
 const uploadDir = path.resolve(process.cwd(), config.uploadDir);
-fs.mkdirSync(uploadDir, { recursive: true });
+try {
+  fs.mkdirSync(uploadDir, { recursive: true });
+} catch {
+  // Read-only filesystem (e.g. serverless) — local uploads won't persist there.
+}
 app.use('/uploads', express.static(uploadDir));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
@@ -77,28 +81,44 @@ app.use((err, _req, res, _next) => {
   res.status(status).json({ error: err.message || 'Server error.' });
 });
 
-initDb()
-  .then(async () => {
-    await seedIfEmpty();
-    await seedProsIfEmpty();
-    // Best-effort pro settings sync (uses source if configured; else HLTV → falls back to seed).
-    syncPros({}).catch(() => {});
-    // Best-effort initial sync (no-op if no source configured); never blocks boot.
-    syncFromSource({})
-      .then((r) => {
-        if (r.synced) console.log(`[server] command catalog synced from source (${r.count} commands)`);
-      })
-      .catch(() => {});
+// Initialize the DB (+ seeds) once. On a persistent server this runs at boot; on
+// serverless (Vercel) it runs once per cold start and every request awaits it.
+export async function initialize() {
+  await initDb();
+  await seedIfEmpty();
+  await seedProsIfEmpty();
+  // Best-effort pro settings sync (uses source if configured; else falls back to seed).
+  syncPros({}).catch(() => {});
+  // Best-effort initial command sync (no-op if no source configured); never blocks boot.
+  syncFromSource({})
+    .then((r) => {
+      if (r.synced) console.log(`[server] command catalog synced from source (${r.count} commands)`);
+    })
+    .catch(() => {});
+  // Background schedulers only make sense on a long-running server, not serverless.
+  if (!process.env.VERCEL) {
     startCommandsScheduler();
-    // Watch for CS2 patches and re-sync the catalog whenever the build changes.
     startCs2Watcher();
+  }
+}
 
-    app.listen(config.port, () => {
-      console.log(`[server] AimKit API listening on http://localhost:${config.port}`);
-      console.log(`[server] owner email: ${config.ownerEmail}`);
+// Consumers await this before handling requests.
+export const ready = initialize();
+
+export default app;
+
+// Start a standalone HTTP server unless we're running on a serverless platform
+// (Vercel imports `app`/`ready` from src via api/index.js instead).
+if (!process.env.VERCEL) {
+  ready
+    .then(() => {
+      app.listen(config.port, () => {
+        console.log(`[server] AimKit API listening on http://localhost:${config.port}`);
+        console.log(`[server] owner email: ${config.ownerEmail}`);
+      });
+    })
+    .catch((err) => {
+      console.error('[server] Failed to initialize database:', err.message);
+      process.exit(1);
     });
-  })
-  .catch((err) => {
-    console.error('[server] Failed to initialize database:', err.message);
-    process.exit(1);
-  });
+}

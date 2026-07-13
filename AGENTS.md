@@ -39,6 +39,7 @@ AimKit (domain: aimkit.net; formerly "CS2 Utils") is a **full-stack app**. **The
 - Frontend scripts (`web/package.json`): `npm run dev`, `npm run build` (→ `web/dist/`), `npm run preview`.
 - **Deploy (single Node app / one folder):** point a Node host at the repo root — startup `src/index.js`, `npm install` — it serves `public/` + `/api` on one origin. The built `public/` is committed so no build step is required on the host.
 - CI (`.github/workflows/deploy.yml`) builds the **frontend** (from `web/`) and deploys it to GitHub Pages only; it does not run the backend.
+- **Serverless:** `src/index.js` exports `app` + `ready` and only calls `app.listen` when `process.env.VERCEL` is unset. `api/index.js` + `vercel.json` run the same app as a Vercel function (awaits `ready`, skips background schedulers). Local `uploads/` and the schedulers don't persist/run on serverless.
 
 ### Commands catalog (wiki auto-sync)
 

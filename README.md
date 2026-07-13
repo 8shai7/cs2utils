@@ -103,6 +103,31 @@ When you change the frontend, run `npm run build:web` from the repo root and
 commit the refreshed `public/` (its filenames are content-hashed, so old assets
 are replaced).
 
+### API on Vercel + frontend on Hostinger
+
+The repo is ready to run the API as a Vercel serverless function (`api/index.js`
++ `vercel.json`) while the static frontend is hosted on Hostinger.
+
+1. **API on Vercel:** import this GitHub repo into Vercel (it uses `vercel.json`).
+   Add Environment Variables in the Vercel project:
+   - `DB_HOST` = your Hostinger MySQL host (e.g. `srv1700.hstgr.io`), `DB_PORT`,
+     `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+   - `JWT_SECRET` (strong), `OWNER_EMAIL`
+   - `CORS_ORIGIN=https://aimkit.net,https://www.aimkit.net`
+   - `APP_URL=https://aimkit.net`, `API_URL=https://<project>.vercel.app`
+   - optional: `IMGBB_API_KEY`, `STEAM_API_KEY`, `SMTP_*`
+2. **Hostinger → Remote MySQL:** allow remote connections for the DB user
+   (Vercel IPs are dynamic, so add `%` / any host). Mind `max_connections`.
+3. **Frontend on Hostinger:** build pointing at the Vercel API and upload
+   `web/dist/` to `public_html`:
+   ```bash
+   cd web && VITE_API_URL=https://<project>.vercel.app/api npm run build
+   ```
+
+Serverless caveats: local `uploads/` don't persist on Vercel (avatars use ImgBB,
+but locally-stored pro photos/uploads won't survive), and the background
+schedulers don't run — trigger command/pro syncs from the admin UI instead.
+
 ### Static frontend + API on a subdomain (keep your static host)
 
 If the main domain stays a static site (e.g. `public_html` on Hostinger), host the
