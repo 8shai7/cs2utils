@@ -16,6 +16,11 @@ export function getToken() {
     return null;
   }
 }
+
+/** Store an auth token obtained out-of-band (e.g. Steam login redirect). */
+export function setAuthToken(token) {
+  setToken(token);
+}
 function setToken(token) {
   try {
     if (token) localStorage.setItem(TOKEN_KEY, token);
@@ -57,6 +62,14 @@ async function request(method, path, body, { auth = false } = {}) {
   return data;
 }
 
+/** Full-page URL to begin Steam login. */
+export const steamLoginUrl = `${API_BASE}/auth/steam`;
+
+/** Store a token obtained out-of-band (e.g. from the Steam login redirect). */
+export function adoptToken(token) {
+  setToken(token);
+}
+
 export function isAdmin(user) {
   return !!user && (user.role === 'admin' || user.role === 'owner');
 }
@@ -86,6 +99,15 @@ export const api = {
     logout() {
       setToken(null);
     },
+    async changePassword(input) {
+      return request('POST', '/auth/password', input, { auth: true });
+    },
+    async forgot(email) {
+      return request('POST', '/auth/forgot', { email });
+    },
+    async reset(token, password) {
+      return request('POST', '/auth/reset', { token, password });
+    },
     async me() {
       if (!getToken()) return null;
       try {
@@ -107,6 +129,36 @@ export const api = {
       const form = new FormData();
       form.append('file', file);
       const data = await request('POST', '/auth/avatar/upload', form, { auth: true });
+      return data.user;
+    },
+    async changePassword(input) {
+      return request('POST', '/auth/password', input, { auth: true });
+    },
+    async changeUsername(username) {
+      const data = await request('POST', '/auth/username', { username }, { auth: true });
+      if (data.token) setToken(data.token);
+      return data.user;
+    },
+    async setCredentials(input) {
+      const data = await request('POST', '/auth/credentials', input, { auth: true });
+      if (data.token) setToken(data.token);
+      return data.user;
+    },
+    async forgot(email) {
+      return request('POST', '/auth/forgot', { email });
+    },
+    async reset(token, password) {
+      return request('POST', '/auth/reset', { token, password });
+    },
+    steamLoginUrl() {
+      return `${API_BASE}/auth/steam`;
+    },
+    async steamLinkUrl() {
+      const data = await request('GET', '/auth/steam/link-url', undefined, { auth: true });
+      return data.url;
+    },
+    async steamUnlink() {
+      const data = await request('POST', '/auth/steam/unlink', {}, { auth: true });
       return data.user;
     },
   },

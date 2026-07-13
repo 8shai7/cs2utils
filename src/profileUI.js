@@ -101,7 +101,7 @@ function render() {
           }</div>
           <div>
             <h2 class="profile-name">${esc(session.username)} <span class="nade-badge ${esc(session.role)}">${esc(session.role)}</span></h2>
-            <p class="hint">${esc(session.email)} · member since ${fmtDate(session.createdAt)}</p>
+            <p class="hint">${session.email ? esc(session.email) : 'No email set'} · member since ${fmtDate(session.createdAt)}</p>
             <div class="avatar-controls">
               <input type="file" id="avatar-file" accept="image/*" hidden />
               <button class="btn btn-sm" id="avatar-upload">${session.avatarUrl ? 'Change photo' : 'Upload photo'}</button>
@@ -117,11 +117,52 @@ function render() {
           ${statCard('Comments', s.comments)}
         </dl>
       </section>
+      <section class="panel profile-account">
+        <div class="panel-head"><h2>Account</h2></div>
+        <div class="profile-settings-body">
+          <label class="field"><span>Username</span><input id="acc-username" type="text" value="${esc(session.username)}" maxlength="80" /></label>
+          <div class="actions"><button class="btn btn-sm" id="username-save">Save username</button></div>
+          <div class="account-steam">
+            ${
+              session.steamId
+                ? `<p class="hint">Steam linked${session.steamPersona ? `: <strong>${esc(session.steamPersona)}</strong>` : ''}.</p>
+                   <button class="btn btn-sm ghost" id="steam-unlink">Unlink Steam</button>`
+                : `<p class="hint">Connect your Steam account so you can also log in with Steam.</p>
+                   <button class="btn btn-sm" id="steam-link">Connect Steam</button>`
+            }
+          </div>
+        </div>
+      </section>
+      ${
+        session.hasPassword
+          ? `<section class="panel profile-password">
+               <div class="panel-head"><h2>Change password</h2></div>
+               <div class="profile-settings-body">
+                 <label class="field"><span>Current password</span><input id="pw-current" type="password" autocomplete="current-password" /></label>
+                 <label class="field"><span>New password</span><input id="pw-new" type="password" autocomplete="new-password" /></label>
+                 <div class="actions"><button class="btn primary" id="pw-save">Update password</button></div>
+               </div>
+             </section>`
+          : `<section class="panel profile-password">
+               <div class="panel-head"><h2>Set email &amp; password</h2><span class="panel-tag">Steam account</span></div>
+               <div class="profile-settings-body">
+                 <p class="hint">Add an email and password so you can log in without Steam. Your email can't be changed later.</p>
+                 <label class="field"><span>Email</span><input id="cred-email" type="email" autocomplete="email" /></label>
+                 <label class="field"><span>Password</span><input id="cred-password" type="password" autocomplete="new-password" /></label>
+                 <div class="actions"><button class="btn primary" id="cred-save">Save email &amp; password</button></div>
+               </div>
+             </section>`
+      }
       ${ownerSettingsHtml()}
       <div id="profile-status" class="status ${statusMsg.kind}">${esc(statusMsg.text)}</div>
     </div>`;
 
   tool.querySelector('#set-save')?.addEventListener('click', onSaveSettings);
+  tool.querySelector('#pw-save')?.addEventListener('click', onChangePassword);
+  tool.querySelector('#username-save')?.addEventListener('click', onChangeUsername);
+  tool.querySelector('#cred-save')?.addEventListener('click', onSetCredentials);
+  tool.querySelector('#steam-link')?.addEventListener('click', onSteamLink);
+  tool.querySelector('#steam-unlink')?.addEventListener('click', onSteamUnlink);
 
   const fileInput = tool.querySelector('#avatar-file');
   tool.querySelector('#avatar-upload')?.addEventListener('click', () => fileInput?.click());
@@ -141,11 +182,66 @@ async function onAvatarUpload(file) {
   }
 }
 
+async function onChangePassword() {
+  const currentPassword = tool.querySelector('#pw-current')?.value || '';
+  const newPassword = tool.querySelector('#pw-new')?.value || '';
+  try {
+    await api.auth.changePassword({ currentPassword, newPassword });
+    tool.querySelector('#pw-current').value = '';
+    tool.querySelector('#pw-new').value = '';
+    setStatus('Password updated.', 'ok');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+}
+
 async function onAvatarRemove() {
   try {
     await api.auth.setAvatar('');
     await refresh();
     setStatus('Profile image removed.', 'ok');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+}
+
+async function onChangeUsername() {
+  const username = tool.querySelector('#acc-username')?.value || '';
+  try {
+    await api.auth.changeUsername(username);
+    await refresh();
+    setStatus('Username updated.', 'ok');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+}
+
+async function onSetCredentials() {
+  const email = tool.querySelector('#cred-email')?.value || '';
+  const password = tool.querySelector('#cred-password')?.value || '';
+  try {
+    await api.auth.setCredentials({ email, password });
+    await refresh();
+    setStatus('Email & password saved — you can now log in without Steam.', 'ok');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+}
+
+async function onSteamLink() {
+  try {
+    const url = await api.auth.steamLinkUrl();
+    window.location.href = url;
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+}
+
+async function onSteamUnlink() {
+  try {
+    await api.auth.steamUnlink();
+    await refresh();
+    setStatus('Steam unlinked.', 'ok');
   } catch (err) {
     setStatus(err.message, 'error');
   }

@@ -23,9 +23,10 @@ import { initProfileTool } from './profileUI.js';
 import { initConfigsTool } from './configsUI.js';
 import { initHighlightsTool } from './highlightsUI.js';
 import { initProsTool } from './prosUI.js';
-import { initHeaderAuth } from './headerAuth.js';
+import { initHeaderAuth, openReset } from './headerAuth.js';
 import { openContactModal } from './contactModal.js';
-import { api } from './api.js';
+import { api, adoptToken } from './api.js';
+import { refresh as refreshSession } from './session.js';
 import { renderCrosshairPreview } from './preview.js';
 import {
   GAMES,
@@ -1206,6 +1207,35 @@ document.addEventListener('aimkit:settings-updated', loadDonate);
 document.querySelector('#contact-open')?.addEventListener('click', openContactModal);
 
 initHeaderAuth();
+
+// Password-reset deep link: /?reset=<token>
+const resetToken = new URLSearchParams(window.location.search).get('reset');
+if (resetToken) {
+  openReset(resetToken);
+  const url = new URL(window.location.href);
+  url.searchParams.delete('reset');
+  window.history.replaceState({}, '', url);
+}
+
+// Steam login redirect: /?token=<jwt> (or ?steam_error=1)
+const steamParams = new URLSearchParams(window.location.search);
+if (steamParams.get('token')) {
+  adoptToken(steamParams.get('token'));
+  refreshSession();
+  const url = new URL(window.location.href);
+  url.searchParams.delete('token');
+  window.history.replaceState({}, '', url);
+} else if (steamParams.get('steam') === 'linked') {
+  refreshSession();
+  const url = new URL(window.location.href);
+  url.searchParams.delete('steam');
+  window.history.replaceState({}, '', url);
+} else if (steamParams.get('steam_error')) {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('steam_error');
+  window.history.replaceState({}, '', url);
+}
+
 initNadesTool();
 initCommandsTool();
 initConfigsTool();
