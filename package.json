@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
+    "build": "npm --prefix web install && npm --prefix web run build && node scripts/copy-web-dist-to-root.mjs",
     "build:web": "npm --prefix web install && npm --prefix web run build && node scripts/copy-frontend.mjs"
   },
   "license": "MIT",
