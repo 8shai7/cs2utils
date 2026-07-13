@@ -76,25 +76,31 @@ work on any static host. **Everything else (accounts, Nades DB, Commands, Config
 Highlights, Pro settings, Contact) needs the Node API**, so those pages will show
 `/api/... 404` on a static-only deploy (e.g. GitHub Pages).
 
-### Full deploy (one server — recommended, e.g. Hostinger)
+### Full deploy — one folder (recommended, e.g. Hostinger)
 
-Run the Node server; it serves the built frontend **and** the API from the same
-origin, so the browser's `/api` calls resolve with no proxy or CORS setup:
+Build the frontend **into the server**, then deploy just the `server/` folder as a
+Node app. It serves the SPA and `/api` from the same origin, so there's no proxy,
+no CORS, and no `VITE_API_URL` to set.
 
 ```bash
-# 1. build the frontend → dist/
-npm install && npm run build
-
-# 2. configure + start the backend (serves dist/ + /api)
-cd server
-cp .env.example .env   # fill in DB creds, JWT_SECRET, etc.
-npm install && npm start
+# from the repo root
+npm install
+npm run build:server   # builds dist/ and copies it to server/public/
 ```
 
-Open the server's URL (default `http://localhost:3001`). The server auto-serves
-`../dist`; override the location with `FRONTEND_DIR=/path/to/dist` if needed.
-If the frontend is hosted separately instead, build it with
-`VITE_API_URL=https://your-api-host/api` so it points at the backend.
+Upload the `server/` folder (it now contains `public/`) to your Node host and
+configure the app:
+
+- **Application root:** `server`
+- **Startup file:** `src/index.js`  (or run `npm start`)
+- **Install command:** `npm install`
+- Add `server/.env` (copy from `server/.env.example`, fill in DB creds, a strong
+  `JWT_SECRET`, SMTP, etc.). With everything on one origin you can leave
+  `CORS_ORIGIN` default and skip `VITE_API_URL`.
+
+The server serves the frontend from `server/public` (or `../dist`, or
+`FRONTEND_DIR` if set). Rebuild with `npm run build:server` and re-upload
+`server/public` whenever the frontend changes.
 
 ### Static frontend + API on a subdomain (keep your static host)
 
