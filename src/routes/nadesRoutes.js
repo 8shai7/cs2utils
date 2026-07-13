@@ -4,6 +4,7 @@ import { requireAuth, optionalAuth, isAdminRole } from '../auth.js';
 import { asyncHandler, ApiError, clamp01 } from '../util.js';
 import { MAP_IDS, TYPE_IDS, TECHNIQUE_IDS, SIDE_IDS, detectMediaKind } from '../meta.js';
 import { parseMapGuide, MAX_IMPORT } from '../parseMapGuide.js';
+import { buildPracticePack } from '../mapGuidePractice.js';
 
 export const nadesRoutes = Router();
 
@@ -35,6 +36,7 @@ function serializeNade(row, media) {
     reviewedBy: row.reviewed_by,
     reviewNote: row.review_note || '',
     createdAt: row.created_at,
+    guideImportId: row.guide_import_id || null,
     media,
   };
 }
@@ -121,13 +123,18 @@ nadesRoutes.post(
   asyncHandler(async (req, res) => {
     const b = req.body || {};
     const side = SIDE_IDS.includes(b.side) ? b.side : 't';
+    const guideText = String(b.guideText || b.text || '').trim();
 
     let drafts;
+    let mapForImport = null;
     if (Array.isArray(b.nades) && b.nades.length) {
       drafts = b.nades;
-    } else if (b.text) {
+      mapForImport = drafts[0]?.map || null;
+    } else if (guideText) {
       try {
-        drafts = parseMapGuide(b.text).nades;
+        const parsed = parseMapGuide(guideText);
+        drafts = parsed.nades;
+        mapForImport = parsed.map;
       } catch (err) {
         throw new ApiError(400, err.message || 'Could not parse map guide.');
       }
@@ -137,6 +144,15 @@ nadesRoutes.post(
 
     if (drafts.length > MAX_IMPORT) {
       throw new ApiError(400, `Too many lineups (max ${MAX_IMPORT} per import).`);
+    }
+
+    let guideImportId = null;
+    if (guideText && mapForImport && MAP_IDS.includes(mapForImport)) {
+      const [guideResult] = await pool.query(
+        `INSERT INTO map_guide_imports (author_id, map, file_name, guide_text) VALUES (?, ?, ?, ?)`,
+        [req.user.id, mapForImport, String(b.fileName || '').slice(0, 160) || null, guideText],
+      );
+      guideImportId = guideResult.insertId;
     }
 
     const created = [];
@@ -150,8 +166,8 @@ nadesRoutes.post(
       const description = String(draft.description || '').trim() || null;
 
       const [result] = await pool.query(
-        `INSERT INTO nades (author_id, map, type, side, technique, title, description, start_x, start_y, end_x, end_y, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+        `INSERT INTO nades (author_id, map, type, side, technique, title, description, start_x, start_y, end_x, end_y, status, guide_import_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
         [
           req.user.id,
           draft.map,
@@ -164,6 +180,7 @@ nadesRoutes.post(
           clamp01(draft.start.y),
           clamp01(draft.end.x),
           clamp01(draft.end.y),
+          guideImportId,
         ],
       );
       created.push(result.insertId);
@@ -179,8 +196,58 @@ nadesRoutes.post(
     );
     res.status(201).json({
       count: created.length,
+      guideImportId,
       nades: await withMedia(rows),
     });
+  }),
+);
+
+// Build a "Try in game" practice pack (guide + cfg + Steam URL) from pasted text.
+nadesRoutes.post(
+  '/map-guide/practice-pack',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const text = String(req.body?.text || '').trim();
+    let mapId = req.body?.map;
+    if (!mapId && text) {
+      try {
+        mapId = parseMapGuide(text).map;
+      } catch (err) {
+        throw new ApiError(400, err.message || 'Could not parse map guide.');
+      }
+    }
+    if (!MAP_IDS.includes(mapId)) throw new ApiError(400, 'Choose a valid map.');
+    try {
+      res.json({ pack: buildPracticePack({ mapId, guideText: text, importId: req.body?.importId || null }) });
+    } catch (err) {
+      throw new ApiError(400, err.message || 'Could not build practice pack.');
+    }
+  }),
+);
+
+// Practice pack for a previously imported map guide (author only).
+nadesRoutes.get(
+  '/map-guide/imports/:id/practice-pack',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const [rows] = await pool.query('SELECT * FROM map_guide_imports WHERE id = ?', [req.params.id]);
+    if (!rows.length) throw new ApiError(404, 'Map guide import not found.');
+    const row = rows[0];
+    if (row.author_id !== req.user.id && !isAdminRole(req.user.role)) {
+      throw new ApiError(403, 'You can only open your own imported guides in CS2.');
+    }
+    try {
+      res.json({
+        pack: buildPracticePack({
+          mapId: row.map,
+          guideText: row.guide_text,
+          importId: row.id,
+        }),
+        fileName: row.file_name,
+      });
+    } catch (err) {
+      throw new ApiError(400, err.message || 'Could not build practice pack.');
+    }
   }),
 );
 

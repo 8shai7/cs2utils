@@ -13,6 +13,7 @@ import {
   detectMediaKind,
 } from './nades.js';
 import { renderThrow, canvasPointToNormalized } from './throwCanvas.js';
+import { tryInGame, downloadPracticePack, practicePackModalHtml } from './tryInGame.js';
 
 const CANVAS_SIZE = 360;
 
@@ -31,6 +32,7 @@ let usersData = [];
 
 let draft = newDraft();
 let guideImport = newGuideImport();
+let tryGamePack = null;
 
 function newDraft() {
   return {
@@ -320,6 +322,9 @@ function guideImportHtml() {
           <button class="btn primary" type="button" id="guide-import" ${parsed ? '' : 'disabled'}>
             Import ${parsed ? parsed.nades.length : ''} for review
           </button>
+          <button class="btn" type="button" id="guide-try-game" ${parsed ? '' : 'disabled'}>
+            Try in game
+          </button>
           <button class="btn ghost" type="button" id="guide-clear">Clear</button>
         </div>
         ${
@@ -347,6 +352,11 @@ function mineHtml() {
         <div class="nade-add-media">
           <input type="url" class="add-media-url" data-nade="${n.id}" placeholder="Add media URL (image or video)" />
           <button class="btn" data-add-media="${n.id}">Add media</button>
+          ${
+            n.guideImportId
+              ? `<button class="btn" data-try-import="${n.guideImportId}">Try in game</button>`
+              : ''
+          }
           <button class="btn ghost" data-delete-nade="${n.id}">Delete</button>
         </div>
       </div>`,
@@ -461,6 +471,7 @@ function render() {
       ${subnavHtml()}
       <div class="nades-body">${viewBodyHtml()}</div>
       <div id="nades-status" class="status ${statusMsg.kind}">${esc(statusMsg.text)}</div>
+      ${tryGamePack ? practicePackModalHtml(tryGamePack, { esc }) : ''}
     </div>`;
   wire();
   drawCanvases();
@@ -570,8 +581,10 @@ function wire() {
   });
   tool.querySelector('#guide-parse')?.addEventListener('click', onGuideParse);
   tool.querySelector('#guide-import')?.addEventListener('click', onGuideImport);
+  tool.querySelector('#guide-try-game')?.addEventListener('click', onGuideTryGame);
   tool.querySelector('#guide-clear')?.addEventListener('click', () => {
     guideImport = newGuideImport();
+    tryGamePack = null;
     render();
     setStatus('Cleared map guide.', '');
   });
@@ -582,9 +595,25 @@ function wire() {
     }),
   );
 
-  // My nades: add media / delete
+  // Try-in-game modal
+  tool.querySelector('[data-try-game-close]')?.addEventListener('click', () => {
+    tryGamePack = null;
+    render();
+  });
+  tool.querySelector('[data-try-game-download]')?.addEventListener('click', () => {
+    if (!tryGamePack) return;
+    downloadPracticePack(tryGamePack);
+    const st = tool.querySelector('[data-try-game-status]');
+    if (st) st.textContent = 'Downloaded guide + CFG. Place them under game/csgo, then click Install & open CS2.';
+  });
+  tool.querySelector('[data-try-game-go]')?.addEventListener('click', onTryGameGo);
+
+  // My nades: add media / delete / try in game
   tool.querySelectorAll('[data-add-media]').forEach((b) =>
     b.addEventListener('click', () => onAddMedia(b.dataset.addMedia)),
+  );
+  tool.querySelectorAll('[data-try-import]').forEach((b) =>
+    b.addEventListener('click', () => onTryImport(b.dataset.tryImport)),
   );
   tool.querySelectorAll('[data-delete-nade]').forEach((b) =>
     b.addEventListener('click', () => onDeleteNade(b.dataset.deleteNade)),
@@ -701,11 +730,14 @@ async function onGuideImport() {
     return;
   }
   guideImport.side = tool.querySelector('#guide-side')?.value || guideImport.side;
+  const guideText = (tool.querySelector('#guide-text')?.value || guideImport.text || '').trim();
   try {
     setStatus('Importing lineups…', '');
     const result = await api.nades.importMapGuide({
       nades: guideImport.parsed.nades,
       side: guideImport.side,
+      guideText,
+      fileName: guideImport.fileName,
     });
     guideImport = newGuideImport();
     await loadView('mine');
@@ -714,6 +746,50 @@ async function onGuideImport() {
       'ok',
     );
   } catch (err) {
+    setStatus(err.message, 'error');
+  }
+}
+
+async function onGuideTryGame() {
+  const text = (tool.querySelector('#guide-text')?.value || guideImport.text || '').trim();
+  const map = guideImport.parsed?.map;
+  if (!text || !map) {
+    setStatus('Preview the map guide first.', 'error');
+    return;
+  }
+  try {
+    setStatus('Preparing CS2 practice pack…', '');
+    const data = await api.nades.practicePackFromText({ text, map });
+    tryGamePack = data.pack;
+    render();
+    setStatus('Ready — install into CS2 and open a private practice server.', 'ok');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+}
+
+async function onTryImport(importId) {
+  try {
+    setStatus('Preparing CS2 practice pack…', '');
+    const data = await api.nades.practicePackFromImport(importId);
+    tryGamePack = data.pack;
+    render();
+    setStatus('Ready — install into CS2 and open a private practice server.', 'ok');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+}
+
+async function onTryGameGo() {
+  if (!tryGamePack) return;
+  const st = tool.querySelector('[data-try-game-status]');
+  if (st) st.textContent = 'Working…';
+  try {
+    const result = await tryInGame(tryGamePack);
+    if (st) st.textContent = result.message;
+    setStatus(result.message, 'ok');
+  } catch (err) {
+    if (st) st.textContent = err.message;
     setStatus(err.message, 'error');
   }
 }
