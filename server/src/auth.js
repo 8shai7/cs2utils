@@ -66,3 +66,10 @@ export function requireAdmin(req, res, next) {
   }
   next();
 }
+
+export function requireOwner(req, res, next) {
+  if (!req.user || req.user.role !== 'owner') {
+    return res.status(403).json({ error: 'Owner privileges required.' });
+  }
+  next();
+}

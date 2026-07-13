@@ -1,13 +1,37 @@
 import { Router } from 'express';
 import { pool } from '../db.js';
-import { requireAuth, requireAdmin, publicUser } from '../auth.js';
+import { requireAuth, requireAdmin, requireOwner, publicUser } from '../auth.js';
 import { asyncHandler, ApiError } from '../util.js';
 import { withMedia } from './nadesRoutes.js';
 import { syncFromSource, checkCs2Build } from '../commandsSync.js';
+import { getSettings, saveSettings } from '../settings.js';
 
 export const adminRoutes = Router();
 
 adminRoutes.use(requireAuth, requireAdmin);
+
+const URL_OK = (u) => u === '' || /^https?:\/\/\S+$/i.test(u);
+
+// Owner-only site settings (donate links). Visible to owner for editing.
+adminRoutes.get(
+  '/settings',
+  requireOwner,
+  asyncHandler(async (_req, res) => {
+    res.json(await getSettings());
+  }),
+);
+
+adminRoutes.post(
+  '/settings',
+  requireOwner,
+  asyncHandler(async (req, res) => {
+    const paypalUrl = (req.body?.paypalUrl || '').trim();
+    const steamTradeUrl = (req.body?.steamTradeUrl || '').trim();
+    if (!URL_OK(paypalUrl)) throw new ApiError(400, 'PayPal link must be a valid http(s) URL or empty.');
+    if (!URL_OK(steamTradeUrl)) throw new ApiError(400, 'Steam trade link must be a valid http(s) URL or empty.');
+    res.json(await saveSettings({ paypalUrl, steamTradeUrl }));
+  }),
+);
 
 // Manually trigger a command-catalog sync from the configured remote source.
 adminRoutes.post(

@@ -9,6 +9,7 @@ import { nadesRoutes } from './routes/nadesRoutes.js';
 import { adminRoutes } from './routes/adminRoutes.js';
 import { uploadsRoutes } from './routes/uploadsRoutes.js';
 import { commandsRoutes } from './routes/commandsRoutes.js';
+import { settingsRoutes } from './routes/settingsRoutes.js';
 import { seedIfEmpty, syncFromSource, startCommandsScheduler, startCs2Watcher } from './commandsSync.js';
 
 const app = express();
@@ -28,6 +29,7 @@ app.get('/api/health', (_req, res) => res.json({ ok: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/nades', nadesRoutes);
 app.use('/api/commands', commandsRoutes);
+app.use('/api/settings', settingsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/uploads', uploadsRoutes);
 

@@ -19,11 +19,14 @@ function renderMenu() {
   const user = getUser();
   if (user) {
     menuEl.innerHTML = `
-      <span class="account-chip">
+      <button class="account-chip" id="hdr-profile" title="View your profile">
         <span class="account-name">${esc(user.username)}</span>
         <span class="nade-badge ${esc(user.role)}">${esc(user.role)}</span>
-      </span>
+      </button>
       <button class="btn ghost btn-sm" id="hdr-logout">Log out</button>`;
+    menuEl
+      .querySelector('#hdr-profile')
+      .addEventListener('click', () => document.dispatchEvent(new CustomEvent('aimkit:navigate', { detail: 'profile' })));
     menuEl.querySelector('#hdr-logout').addEventListener('click', () => logout());
   } else {
     menuEl.innerHTML = `

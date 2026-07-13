@@ -69,6 +69,14 @@ body {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--panel-border);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition: 150ms ease;
+}
+
+button.account-chip:hover {
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 .account-name {
@@ -1117,6 +1125,81 @@ input[type='color'] {
   .user-row {
     grid-template-columns: 1fr;
   }
+}
+
+/* --- Profile page --- */
+.profile-shell {
+  display: grid;
+  gap: 1.1rem;
+  max-width: 720px;
+}
+
+.profile-card,
+.profile-settings {
+  padding: 1.2rem;
+}
+
+.profile-head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.1rem;
+}
+
+.profile-avatar {
+  width: 60px;
+  height: 60px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #111;
+  background: linear-gradient(180deg, var(--accent-strong), var(--accent));
+}
+
+.profile-name {
+  margin: 0;
+  font-size: 1.3rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.profile-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.7rem;
+  margin: 0;
+}
+
+.profile-stat {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.85rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--panel-border);
+}
+
+.profile-stat dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.profile-stat dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--accent-strong);
+}
+
+.profile-settings-body {
+  padding: 1rem 0 0;
+  display: grid;
+  gap: 0.6rem;
 }
 
 /* --- Commands tool --- */

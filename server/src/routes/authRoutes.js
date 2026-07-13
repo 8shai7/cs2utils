@@ -71,3 +71,40 @@ authRoutes.get(
     res.json({ user: publicUser(rows[0]) });
   }),
 );
+
+// Profile: the current user's account plus contribution stats.
+authRoutes.get(
+  '/profile',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const uid = req.user.id;
+    const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [uid]);
+    if (!rows.length) throw new ApiError(404, 'Account not found.');
+
+    const [[{ nadesTotal }]] = await pool.query('SELECT COUNT(*) AS nadesTotal FROM nades WHERE author_id = ?', [uid]);
+    const [[{ nadesApproved }]] = await pool.query(
+      "SELECT COUNT(*) AS nadesApproved FROM nades WHERE author_id = ? AND status = 'approved'",
+      [uid],
+    );
+    const [[{ nadesPending }]] = await pool.query(
+      "SELECT COUNT(*) AS nadesPending FROM nades WHERE author_id = ? AND status = 'pending'",
+      [uid],
+    );
+    const [[{ recommendations }]] = await pool.query(
+      'SELECT COUNT(*) AS recommendations FROM command_recommendations WHERE user_id = ?',
+      [uid],
+    );
+    const [[{ comments }]] = await pool.query('SELECT COUNT(*) AS comments FROM command_comments WHERE user_id = ?', [uid]);
+
+    res.json({
+      user: publicUser(rows[0]),
+      stats: {
+        nadesTotal: Number(nadesTotal),
+        nadesApproved: Number(nadesApproved),
+        nadesPending: Number(nadesPending),
+        recommendations: Number(recommendations),
+        comments: Number(comments),
+      },
+    });
+  }),
+);

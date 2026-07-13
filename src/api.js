@@ -96,6 +96,14 @@ export const api = {
         return null;
       }
     },
+    async profile() {
+      return request('GET', '/auth/profile', undefined, { auth: true });
+    },
+  },
+  settings: {
+    async get() {
+      return request('GET', '/settings');
+    },
   },
   nades: {
     async list({ map = '', type = '' } = {}) {
@@ -157,6 +165,9 @@ export const api = {
     },
     async checkCommandsCs2() {
       return request('POST', '/admin/commands/check-cs2', {}, { auth: true });
+    },
+    async saveSettings(data) {
+      return request('POST', '/admin/settings', data, { auth: true });
     },
     async pendingCount() {
       const data = await request('GET', '/admin/nades/pending/count', undefined, { auth: true });

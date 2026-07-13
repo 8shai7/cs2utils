@@ -19,7 +19,9 @@ import {
 } from './psa.js';
 import { initNadesTool } from './nadesUI.js';
 import { initCommandsTool } from './commandsUI.js';
+import { initProfileTool } from './profileUI.js';
 import { initHeaderAuth } from './headerAuth.js';
+import { api } from './api.js';
 import { renderCrosshairPreview } from './preview.js';
 import {
   GAMES,
@@ -32,11 +34,8 @@ import './style.css';
 
 const SHARECODE_RE = /^CSGO(-[\w]{5}){5}$/i;
 
-// Donation links — replace these with the project owner's own PayPal.me handle and
-// Steam trade-offer URL. Set a value to an empty string to hide that button.
-const DONATE_PAYPAL_URL = 'https://www.paypal.com/paypalme/8shai7';
-const DONATE_STEAM_TRADE_URL = 'https://steamcommunity.com/tradeoffer/new/?partner=YOUR_ID&token=YOUR_TOKEN';
-
+// Footer donate icons. The actual links are owner-configurable (see the Profile
+// page) and loaded from the backend at runtime.
 const PAYPAL_ICON = `<svg class="donate-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.1 7.3c.3 2-.3 3.6-1.5 4.8-1.2 1.2-3 1.8-5.2 1.8h-1.1c-.4 0-.8.3-.9.8l-.7 4.5-.2 1.1c0 .3-.3.5-.6.5H6.2c-.3 0-.5-.3-.4-.6L8 6.1c.1-.6.6-1 1.2-1h5.3c2.7 0 4.7.9 5.3 2.9.1.4.2.9.3 1.3z"/><path fill="currentColor" opacity=".55" d="M8.9 9.3c.1-.6.6-1 1.2-1h4.2c.6 0 1.1.1 1.6.2-.3-1.6-1.7-2.4-3.9-2.4H6.8c-.4 0-.8.3-.9.8L3.5 21c0 .3.2.6.5.6h3.1l1.8-12.3z"/></svg>`;
 const STEAM_ICON = `<svg class="donate-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2A10 10 0 0 0 2.05 11l5.32 2.2a2.82 2.82 0 0 1 1.6-.5l2.37-3.44v-.05a3.76 3.76 0 1 1 3.76 3.76h-.09l-3.38 2.42a2.83 2.83 0 0 1-5.63.4l-3.8-1.57A10 10 0 1 0 12 2ZM7.6 17.17l-1.22-.5a2.13 2.13 0 0 0 3.94-.17 2.12 2.12 0 0 0-1.15-2.77l-1.26-.52a2.83 2.83 0 0 1 2.14 5.24 2.79 2.79 0 0 1-2.19-1.28Zm9.79-6.4a2.51 2.51 0 1 1 0-5.02 2.51 2.51 0 0 1 0 5.02Zm-1.87-2.51a1.88 1.88 0 1 0 3.76 0 1.88 1.88 0 0 0-3.76 0Z"/></svg>`;
 
@@ -380,21 +379,12 @@ app.innerHTML = `
 
     <main id="commands-tool" class="tool-view"></main>
 
+    <main id="profile-tool" class="tool-view"></main>
+
     <footer class="footer">
-      <section class="donate">
+      <section class="donate hidden" id="donate-section">
         <p class="donate-label">Found AimKit useful? Support the project:</p>
-        <div class="donate-actions">
-          ${
-            DONATE_PAYPAL_URL
-              ? `<a class="btn donate-btn paypal" href="${DONATE_PAYPAL_URL}" target="_blank" rel="noopener noreferrer">${PAYPAL_ICON}<span>Donate via PayPal</span></a>`
-              : ''
-          }
-          ${
-            DONATE_STEAM_TRADE_URL
-              ? `<a class="btn donate-btn steam" href="${DONATE_STEAM_TRADE_URL}" target="_blank" rel="noopener noreferrer">${STEAM_ICON}<span>Donate Steam skins</span></a>`
-              : ''
-          }
-        </div>
+        <div class="donate-actions" id="donate-actions"></div>
       </section>
       <p class="footer-note">Not affiliated with Valve. Share codes and yaw values are community-verified.</p>
     </footer>
@@ -672,6 +662,7 @@ const TOOL_DESCRIPTIONS = {
     'Browse community grenade line-ups, or sign in to submit your own with a 2D throw guide, videos and photos.',
   commands:
     'Copy up-to-date CS2 launch options and console commands, recommend the ones that help, and share tips in the comments.',
+  profile: 'Your account, contributions, and settings.',
 };
 
 const toolDesc = document.querySelector('#tool-desc');
@@ -679,21 +670,25 @@ function setToolDescription(tool) {
   if (toolDesc) toolDesc.textContent = TOOL_DESCRIPTIONS[tool] || '';
 }
 
-document.querySelectorAll('.tool-nav .tool-tab').forEach((tab) => {
-  tab.addEventListener('click', () => {
-    const tool = tab.getAttribute('data-tool');
-    document.querySelectorAll('.tool-nav .tool-tab').forEach((t) => {
-      const active = t.getAttribute('data-tool') === tool;
-      t.classList.toggle('active', active);
-      t.setAttribute('aria-selected', String(active));
-    });
-    document.querySelectorAll('.tool-view').forEach((view) => {
-      view.classList.toggle('active', view.id === `${tool}-tool`);
-    });
-    setToolDescription(tool);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+function activateTool(tool) {
+  document.querySelectorAll('.tool-nav .tool-tab').forEach((t) => {
+    const active = t.getAttribute('data-tool') === tool;
+    t.classList.toggle('active', active);
+    t.setAttribute('aria-selected', String(active));
   });
+  document.querySelectorAll('.tool-view').forEach((view) => {
+    view.classList.toggle('active', view.id === `${tool}-tool`);
+  });
+  setToolDescription(tool);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+document.querySelectorAll('.tool-nav .tool-tab').forEach((tab) => {
+  tab.addEventListener('click', () => activateTool(tab.getAttribute('data-tool')));
 });
+
+// Allow other components (e.g. the header account menu) to navigate.
+document.addEventListener('aimkit:navigate', (e) => activateTool(e.detail));
 
 setToolDescription('crosshair');
 
@@ -1128,6 +1123,42 @@ drawPreview(null);
 decodeFromCode();
 loadCs2ValorantExample();
 
+// --- Footer donate links (owner-configurable, loaded from the backend) ---
+function escAttr(url) {
+  return String(url || '').replaceAll('&', '&amp;').replaceAll('"', '&quot;');
+}
+
+function renderDonate(settings) {
+  const section = document.querySelector('#donate-section');
+  const actions = document.querySelector('#donate-actions');
+  if (!section || !actions) return;
+  const buttons = [];
+  if (settings.paypalUrl) {
+    buttons.push(
+      `<a class="btn donate-btn paypal" href="${escAttr(settings.paypalUrl)}" target="_blank" rel="noopener noreferrer">${PAYPAL_ICON}<span>Donate via PayPal</span></a>`,
+    );
+  }
+  if (settings.steamTradeUrl) {
+    buttons.push(
+      `<a class="btn donate-btn steam" href="${escAttr(settings.steamTradeUrl)}" target="_blank" rel="noopener noreferrer">${STEAM_ICON}<span>Donate Steam skins</span></a>`,
+    );
+  }
+  actions.innerHTML = buttons.join('');
+  section.classList.toggle('hidden', buttons.length === 0);
+}
+
+async function loadDonate() {
+  try {
+    renderDonate(await api.settings.get());
+  } catch {
+    renderDonate({ paypalUrl: '', steamTradeUrl: '' });
+  }
+}
+
+document.addEventListener('aimkit:settings-updated', loadDonate);
+
 initHeaderAuth();
 initNadesTool();
 initCommandsTool();
+initProfileTool();
+loadDonate();
