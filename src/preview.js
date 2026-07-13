@@ -47,8 +47,10 @@ function drawArm(ctx, cx, cy, length, thickness, color, alpha) {
 /**
  * @param {HTMLCanvasElement} canvas
  * @param {Crosshair | null} crosshair
- * @param {number} [scale] screen pixels per crosshair unit (height / 1080). At
- *   1920x1080 this is 1, i.e. cl_crosshairsize/thickness map ~1:1 to pixels.
+ * @param {number} [scale] canvas pixels per crosshair unit. When the canvas
+ *   backing store represents the full screen height (1080 units), pass
+ *   canvas.height / 1080 so the crosshair is drawn as a true fraction of the
+ *   whole screen rather than relative to the small preview box.
  */
 export function renderCrosshairPreview(canvas, crosshair, scale = 1) {
   const ctx = canvas.getContext('2d');
@@ -68,9 +70,13 @@ export function renderCrosshairPreview(canvas, crosshair, scale = 1) {
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);
 
+  // Grid + fonts are sized relative to the canvas so the look is consistent
+  // regardless of the backing-store resolution (the box may be a high-res
+  // full-screen render that CSS downscales to the panel).
+  const gridStep = Math.max(24, Math.round(size / 9));
   ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-  ctx.lineWidth = 1;
-  for (let i = 0; i < size; i += 32) {
+  ctx.lineWidth = Math.max(1, Math.round(size / 280));
+  for (let i = 0; i < size; i += gridStep) {
     ctx.beginPath();
     ctx.moveTo(i, 0);
     ctx.lineTo(i, size);
@@ -84,9 +90,9 @@ export function renderCrosshairPreview(canvas, crosshair, scale = 1) {
   if (!crosshair) {
     ctx.globalAlpha = 0.35;
     ctx.fillStyle = '#fff';
-    ctx.font = '14px Outfit, sans-serif';
+    ctx.font = `${Math.round(size * 0.05)}px Outfit, sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText('Enter a code or commands', cx, cy + 5);
+    ctx.fillText('Enter a code or commands', cx, cy + size * 0.02);
     ctx.globalAlpha = 1;
     return;
   }
@@ -137,9 +143,9 @@ export function renderCrosshairPreview(canvas, crosshair, scale = 1) {
   if (crosshair.style === 2 || crosshair.style === 3) {
     ctx.globalAlpha = 0.6;
     ctx.fillStyle = '#fff';
-    ctx.font = '11px JetBrains Mono, monospace';
+    ctx.font = `${Math.round(size * 0.039)}px JetBrains Mono, monospace`;
     ctx.textAlign = 'center';
-    ctx.fillText(`style ${crosshair.style} · dynamic (shown static)`, cx, size - 14);
+    ctx.fillText(`style ${crosshair.style} · dynamic (shown static)`, cx, size - Math.round(size * 0.05));
     ctx.globalAlpha = 1;
   }
 }

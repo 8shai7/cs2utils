@@ -448,6 +448,34 @@ button.account-chip:hover {
   display: none;
 }
 
+.preview-modes {
+  display: flex;
+  gap: 0.3rem;
+  padding: 0.3rem;
+  margin: 0 1.2rem 0.7rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+}
+
+.pmode {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.pmode.active {
+  background: linear-gradient(180deg, var(--accent-strong), var(--accent));
+  color: #111;
+}
+
 .preview-controls {
   display: flex;
   align-items: center;
@@ -485,7 +513,9 @@ button.account-chip:hover {
   aspect-ratio: 1;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  image-rendering: pixelated;
+  /* The backing store is a high-res full-screen render downscaled to the box,
+     so use smooth scaling here (the magnifier keeps its own pixelated zoom). */
+  image-rendering: auto;
 }
 
 .preview-res-field {
