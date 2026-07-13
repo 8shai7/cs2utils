@@ -99,7 +99,12 @@ function cardHtml(p) {
 }
 
 function render() {
-  const adminBtn = isAdmin(session) ? `<button class="btn btn-sm" id="pros-sync">Sync from HLTV</button>` : '';
+  const adminBtn = isAdmin(session)
+    ? `<div class="pros-admin-actions">
+         <button class="btn btn-sm" id="pros-sync">Sync from prosettings.net</button>
+         <button class="btn btn-sm ghost" id="pros-import">Import from HLTV</button>
+       </div>`
+    : '';
   tool.innerHTML = `
     <div class="pros-shell">
       <div class="cmd-status-bar">
@@ -154,10 +159,30 @@ function wire() {
       }, 300);
     });
   }
-  tool.querySelector('#pros-sync')?.addEventListener('click', onSync);
+  tool.querySelector('#pros-sync')?.addEventListener('click', onSyncProsettings);
+  tool.querySelector('#pros-import')?.addEventListener('click', onImportHltv);
 }
 
-function onSync() {
+// One-click automatic sync: the server scrapes prosettings.net (or a configured
+// PRO_SETTINGS_SOURCE_URL feed) and replaces the catalog.
+async function onSyncProsettings() {
+  const btn = tool.querySelector('#pros-sync');
+  if (btn) btn.disabled = true;
+  setStatus('Syncing from prosettings.net…', '');
+  try {
+    const res = await api.admin.syncPros();
+    await load();
+    if (res.synced) setStatus(`Synced ${res.count} players from ${res.source}.`, 'ok');
+    else setStatus(`Sync failed: ${res.reason || 'unknown error'}. Kept the current list.`, 'error');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  } finally {
+    const b = tool.querySelector('#pros-sync');
+    if (b) b.disabled = false;
+  }
+}
+
+function onImportHltv() {
   openImportModal({
     title: 'Import pro settings from HLTV',
     description:

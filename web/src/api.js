@@ -334,6 +334,10 @@ export const api = {
       const data = await request('POST', `/admin/users/${userId}/role`, { role }, { auth: true });
       return data.user;
     },
+    async contactMessages() {
+      const data = await request('GET', '/admin/contact', undefined, { auth: true });
+      return data.messages;
+    },
   },
   uploads: {
     async image(file) {

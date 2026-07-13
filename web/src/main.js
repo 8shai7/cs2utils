@@ -23,6 +23,7 @@ import { initProfileTool } from './profileUI.js';
 import { initConfigsTool } from './configsUI.js';
 import { initHighlightsTool } from './highlightsUI.js';
 import { initProsTool } from './prosUI.js';
+import { initAdminTool } from './adminUI.js';
 import { initHeaderAuth, openReset } from './headerAuth.js';
 import { openContactModal } from './contactModal.js';
 import { api, adoptToken } from './api.js';
@@ -95,6 +96,11 @@ app.innerHTML = `
         <button class="tool-tab" data-tool="highlights" role="tab" aria-selected="false">
           <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg>
           <span>Highlights</span>
+        </button>
+        <span class="tool-nav-group admin-only hidden" aria-hidden="true">Admin</span>
+        <button class="tool-tab admin-only hidden" data-tool="admin" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span>Admin</span>
         </button>
       </nav>
       <p class="tool-desc" id="tool-desc"></p>
@@ -438,6 +444,8 @@ app.innerHTML = `
     <main id="pros-tool" class="tool-view"></main>
 
     <main id="profile-tool" class="tool-view"></main>
+
+    <main id="admin-tool" class="tool-view"></main>
 
     <footer class="footer">
       <section class="donate hidden" id="donate-section">
@@ -785,6 +793,7 @@ const TOOL_DESCRIPTIONS = {
   highlights: 'Share your best CS2 clips, watch the community\u2019s highlights, and report anything that breaks the rules.',
   pros: 'Browse pro players\u2019 sensitivity, DPI, resolution and crosshair settings.',
   profile: 'Your account, contributions, and settings.',
+  admin: 'Moderate content, manage users, sync data sources, and read contact messages.',
 };
 
 const toolDesc = document.querySelector('#tool-desc');
@@ -1334,4 +1343,5 @@ initConfigsTool();
 initHighlightsTool();
 initProsTool();
 initProfileTool();
+initAdminTool();
 loadDonate();
