@@ -639,6 +639,250 @@ input[type='color'] {
   color: var(--accent-strong);
 }
 
+/* --- Nades DB --- */
+.nades-shell {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.nades-account {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.nades-account.auth {
+  display: block;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.85rem;
+}
+
+.auth-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.85rem;
+  align-items: end;
+}
+
+.nades-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.3rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--panel-border);
+  width: fit-content;
+  max-width: 100%;
+}
+
+.nades-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 220px));
+  gap: 0.85rem;
+  margin-bottom: 1.1rem;
+}
+
+.nade-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.1rem;
+}
+
+.nade-card,
+.nade-mine {
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: 1rem;
+  display: grid;
+  gap: 0.7rem;
+  align-content: start;
+}
+
+.nade-mine {
+  gap: 0.5rem;
+}
+
+.nade-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.nade-card-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.nade-sub {
+  margin: 0.3rem 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.nade-chip {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #10151c;
+  background: var(--chip, #cdd6e3);
+  margin-right: 0.3rem;
+}
+
+.nade-canvas {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #222b37;
+}
+
+.nade-canvas.interactive {
+  cursor: crosshair;
+}
+
+.nade-desc {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.nade-foot {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.nade-media {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.nade-media-embed {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: 10px;
+  background: #000;
+}
+
+.nade-media-img {
+  width: 100%;
+  border-radius: 10px;
+  display: block;
+}
+
+.nade-media-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-top: 0.3rem;
+}
+
+.nade-badge {
+  display: inline-block;
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+.nade-badge.approved {
+  background: rgba(62, 207, 142, 0.18);
+  color: var(--success);
+}
+.nade-badge.pending {
+  background: rgba(240, 165, 0, 0.18);
+  color: var(--accent-strong);
+}
+.nade-badge.rejected {
+  background: rgba(255, 107, 107, 0.18);
+  color: var(--error);
+}
+.nade-badge.owner {
+  background: rgba(240, 165, 0, 0.2);
+  color: var(--accent-strong);
+}
+.nade-badge.admin {
+  background: rgba(80, 120, 255, 0.2);
+  color: #9db4ff;
+}
+
+.nade-add {
+  display: grid;
+  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+  gap: 1.2rem;
+  align-items: start;
+}
+
+.nade-add-media {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.nade-add-media .add-media-url {
+  flex: 1 1 200px;
+}
+
+.review-media,
+.review-actions,
+.review-media-item {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.review-actions {
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+}
+
+.users-table {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.user-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+@media (max-width: 720px) {
+  .nade-add {
+    grid-template-columns: 1fr;
+  }
+  .review-actions,
+  .user-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .hidden {
   display: none !important;
 }

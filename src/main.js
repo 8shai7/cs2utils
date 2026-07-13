@@ -17,6 +17,7 @@ import {
   psaFinal,
   PSA_ROUNDS,
 } from './psa.js';
+import { initNadesTool } from './nadesUI.js';
 import { renderCrosshairPreview } from './preview.js';
 import {
   GAMES,
@@ -51,6 +52,7 @@ app.innerHTML = `
         <button class="tool-tab active" data-tool="crosshair" role="tab" aria-selected="true">Crosshair</button>
         <button class="tool-tab" data-tool="sensitivity" role="tab" aria-selected="false">Sensitivity</button>
         <button class="tool-tab" data-tool="psa" role="tab" aria-selected="false">PSA Calculator</button>
+        <button class="tool-tab" data-tool="nades" role="tab" aria-selected="false">Nades DB</button>
       </nav>
     </header>
 
@@ -326,6 +328,8 @@ app.innerHTML = `
         </section>
       </div>
     </main>
+
+    <main id="nades-tool" class="tool-view"></main>
 
     <footer class="footer">
       <section class="donate">
@@ -925,3 +929,5 @@ psaResetBtn?.addEventListener('click', () => {
 renderCrosshairPreview(canvas, null);
 decodeFromCode();
 loadCs2ValorantExample();
+
+initNadesTool();
