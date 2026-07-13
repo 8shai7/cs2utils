@@ -24,6 +24,7 @@ import { initConfigsTool } from './configsUI.js';
 import { initHighlightsTool } from './highlightsUI.js';
 import { initProsTool } from './prosUI.js';
 import { initHeaderAuth } from './headerAuth.js';
+import { openContactModal } from './contactModal.js';
 import { api } from './api.js';
 import { renderCrosshairPreview } from './preview.js';
 import {
@@ -408,6 +409,7 @@ app.innerHTML = `
         <div class="donate-actions" id="donate-actions"></div>
       </section>
       <p class="footer-note">Not affiliated with Valve. Share codes and yaw values are community-verified.</p>
+      <p class="footer-links"><button class="footer-link" id="contact-open">Contact us</button></p>
     </footer>
 
     <div class="donate-fab hidden" id="donate-fab" aria-label="Support AimKit"></div>
@@ -1201,6 +1203,7 @@ async function loadDonate() {
 }
 
 document.addEventListener('aimkit:settings-updated', loadDonate);
+document.querySelector('#contact-open')?.addEventListener('click', openContactModal);
 
 initHeaderAuth();
 initNadesTool();

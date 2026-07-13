@@ -211,6 +211,15 @@ adminRoutes.post(
   }),
 );
 
+// Contact form submissions (admin view).
+adminRoutes.get(
+  '/contact',
+  asyncHandler(async (_req, res) => {
+    const [rows] = await pool.query('SELECT * FROM contact_messages ORDER BY created_at DESC LIMIT 200');
+    res.json({ messages: rows });
+  }),
+);
+
 const PERMANENT_UNTIL = '9999-12-31 23:59:59';
 
 // Ban a user for a number of hours, or permanently. Owner cannot be banned.

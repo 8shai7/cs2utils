@@ -15,6 +15,17 @@ export const config = {
   ownerEmail: (process.env.OWNER_EMAIL || 'shaital121@gmail.com').trim().toLowerCase(),
   corsOrigin: process.env.CORS_ORIGIN || '*',
   uploadDir: process.env.UPLOAD_DIR || 'uploads',
+  // Contact form → email. On Hostinger set SMTP_* to your mailbox (e.g.
+  // smtp.hostinger.com). Without SMTP configured, messages are still stored in DB.
+  contactTo: process.env.CONTACT_TO || 'service@aimkit.net',
+  mailFrom: process.env.MAIL_FROM || process.env.SMTP_USER || 'no-reply@aimkit.net',
+  smtp: {
+    host: process.env.SMTP_HOST || '',
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: String(process.env.SMTP_SECURE || '').toLowerCase() === 'true',
+    user: process.env.SMTP_USER || '',
+    pass: process.env.SMTP_PASS || '',
+  },
   // Optional remote JSON feed override. If set, it takes priority over wiki scraping.
   commandsSourceUrl: process.env.COMMANDS_SOURCE_URL || '',
   commandsSyncTtlHours: Number(process.env.COMMANDS_SYNC_TTL_HOURS || 24),

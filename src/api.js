@@ -105,6 +105,11 @@ export const api = {
       return request('GET', '/settings');
     },
   },
+  contact: {
+    async send(data) {
+      return request('POST', '/contact', data);
+    },
+  },
   pros: {
     async list({ q = '', sort = 'name' } = {}) {
       const params = new URLSearchParams();
