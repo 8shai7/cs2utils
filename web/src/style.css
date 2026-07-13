@@ -2405,6 +2405,7 @@ input[type='color'] {
 .commands-shell {
   display: grid;
   gap: 1.1rem;
+  min-width: 0;
 }
 
 .cmd-status-bar,
@@ -2419,6 +2420,16 @@ input[type='color'] {
   border-radius: var(--radius);
   background: var(--panel);
   font-size: 0.9rem;
+  min-width: 0;
+}
+
+.quick-launch {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.quick-launch .cmd-code-row {
+  width: 100%;
 }
 
 .quick-launch h3 {
@@ -2433,6 +2444,7 @@ input[type='color'] {
 .cmd-category {
   display: grid;
   gap: 0.75rem;
+  min-width: 0;
 }
 
 .cmd-cat-title {
@@ -2448,7 +2460,7 @@ input[type='color'] {
 
 .cmd-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   gap: 0.85rem;
 }
 
@@ -2456,10 +2468,13 @@ input[type='color'] {
   display: grid;
   gap: 0.55rem;
   align-content: start;
+  min-width: 0;
+  max-width: 100%;
   padding: 0.9rem;
   border: 1px solid var(--panel-border);
   border-radius: 14px;
   background: var(--panel);
+  overflow: hidden;
 }
 
 .cmd-title-row {
@@ -2467,11 +2482,14 @@ input[type='color'] {
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .cmd-title-row h4 {
   margin: 0;
   font-size: 0.98rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .cmd-tag {
@@ -2483,6 +2501,7 @@ input[type='color'] {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
   color: var(--muted);
+  flex-shrink: 0;
 }
 
 .cmd-tag.launch {
@@ -2492,17 +2511,22 @@ input[type='color'] {
 
 .cmd-code-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.5rem;
+  min-width: 0;
+  width: 100%;
 }
 
 .cmd-code {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
-  overflow-x: auto;
-  white-space: nowrap;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
   font-family: var(--mono);
   font-size: 0.82rem;
+  line-height: 1.35;
   background: var(--bg-elevated);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
@@ -2510,10 +2534,16 @@ input[type='color'] {
   color: #d6e1ff;
 }
 
+.cmd-code-row .btn {
+  flex: 0 0 auto;
+  align-self: stretch;
+}
+
 .cmd-desc {
   margin: 0;
   color: var(--muted);
   font-size: 0.86rem;
+  overflow-wrap: anywhere;
 }
 
 .cmd-actions {
