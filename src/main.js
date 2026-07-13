@@ -18,6 +18,14 @@ import './style.css';
 
 const SHARECODE_RE = /^CSGO(-[\w]{5}){5}$/i;
 
+// Donation links — replace these with the project owner's own PayPal.me handle and
+// Steam trade-offer URL. Set a value to an empty string to hide that button.
+const DONATE_PAYPAL_URL = 'https://www.paypal.com/paypalme/8shai7';
+const DONATE_STEAM_TRADE_URL = 'https://steamcommunity.com/tradeoffer/new/?partner=YOUR_ID&token=YOUR_TOKEN';
+
+const PAYPAL_ICON = `<svg class="donate-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.1 7.3c.3 2-.3 3.6-1.5 4.8-1.2 1.2-3 1.8-5.2 1.8h-1.1c-.4 0-.8.3-.9.8l-.7 4.5-.2 1.1c0 .3-.3.5-.6.5H6.2c-.3 0-.5-.3-.4-.6L8 6.1c.1-.6.6-1 1.2-1h5.3c2.7 0 4.7.9 5.3 2.9.1.4.2.9.3 1.3z"/><path fill="currentColor" opacity=".55" d="M8.9 9.3c.1-.6.6-1 1.2-1h4.2c.6 0 1.1.1 1.6.2-.3-1.6-1.7-2.4-3.9-2.4H6.8c-.4 0-.8.3-.9.8L3.5 21c0 .3.2.6.5.6h3.1l1.8-12.3z"/></svg>`;
+const STEAM_ICON = `<svg class="donate-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2A10 10 0 0 0 2.05 11l5.32 2.2a2.82 2.82 0 0 1 1.6-.5l2.37-3.44v-.05a3.76 3.76 0 1 1 3.76 3.76h-.09l-3.38 2.42a2.83 2.83 0 0 1-5.63.4l-3.8-1.57A10 10 0 1 0 12 2ZM7.6 17.17l-1.22-.5a2.13 2.13 0 0 0 3.94-.17 2.12 2.12 0 0 0-1.15-2.77l-1.26-.52a2.83 2.83 0 0 1 2.14 5.24 2.79 2.79 0 0 1-2.19-1.28Zm9.79-6.4a2.51 2.51 0 1 1 0-5.02 2.51 2.51 0 0 1 0 5.02Zm-1.87-2.51a1.88 1.88 0 1 0 3.76 0 1.88 1.88 0 0 0-3.76 0Z"/></svg>`;
+
 const app = document.querySelector('#app');
 app.innerHTML = `
   <div class="page">
@@ -255,7 +263,24 @@ app.innerHTML = `
       </div>
     </main>
 
-    <footer class="footer">Not affiliated with Valve. Share codes and yaw values are community-verified.</footer>
+    <footer class="footer">
+      <section class="donate">
+        <p class="donate-label">Found CS2 Utils useful? Support the project:</p>
+        <div class="donate-actions">
+          ${
+            DONATE_PAYPAL_URL
+              ? `<a class="btn donate-btn paypal" href="${DONATE_PAYPAL_URL}" target="_blank" rel="noopener noreferrer">${PAYPAL_ICON}<span>Donate via PayPal</span></a>`
+              : ''
+          }
+          ${
+            DONATE_STEAM_TRADE_URL
+              ? `<a class="btn donate-btn steam" href="${DONATE_STEAM_TRADE_URL}" target="_blank" rel="noopener noreferrer">${STEAM_ICON}<span>Donate Steam skins</span></a>`
+              : ''
+          }
+        </div>
+      </section>
+      <p class="footer-note">Not affiliated with Valve. Share codes and yaw values are community-verified.</p>
+    </footer>
   </div>
 `;
 

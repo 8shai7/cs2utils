@@ -356,6 +356,69 @@ textarea {
   text-align: center;
 }
 
+.donate {
+  display: grid;
+  justify-items: center;
+  gap: 0.85rem;
+  padding: 1.4rem 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 120px), var(--panel);
+}
+
+.donate-label {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.98rem;
+  font-weight: 600;
+}
+
+.donate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.donate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  text-decoration: none;
+  border-color: transparent;
+}
+
+.donate-icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+.donate-btn.paypal {
+  background: #0070ba;
+  color: #fff;
+}
+
+.donate-btn.paypal:hover {
+  background: #005ea6;
+  border-color: transparent;
+}
+
+.donate-btn.steam {
+  background: linear-gradient(180deg, #2a475e, #1b2838);
+  color: #c7d5e0;
+}
+
+.donate-btn.steam:hover {
+  background: linear-gradient(180deg, #33546f, #223444);
+  border-color: transparent;
+}
+
+.footer-note {
+  margin: 0;
+}
+
 .layout-sensitivity {
   grid-template-columns: 300px 1fr;
 }
