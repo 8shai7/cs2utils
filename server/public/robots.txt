@@ -1,0 +1,9 @@
+# AimKit — https://aimkit.net
+User-agent: *
+Allow: /
+
+# Don't index API responses or user uploads
+Disallow: /api/
+Disallow: /uploads/
+
+Sitemap: https://aimkit.net/sitemap.xml
