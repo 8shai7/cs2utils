@@ -109,13 +109,24 @@ export function practicePackModalHtml(pack, { esc, lineupCount = 1 }) {
 
         <ol class="nade-steps try-game-steps">
           <li>Download only what you still need (or nothing if it’s already installed).</li>
-          <li>Copy those files into the paths above (create the folder if needed).</li>
-          <li>Click <strong>Open CS2</strong> — Steam starts a private <code>${esc(
-            pack.deMap,
-          )}</code> server with <code>+exec ${esc(pack.cfgBaseName)}</code>.</li>
-          <li class="hint">If CS2 was already open, it may ignore launch options — quit CS2 first, or paste this in the console (~): <code>${esc(
-            pack.consoleCommand || `map ${pack.deMap}; exec ${pack.cfgBaseName}`,
-          )}</code></li>
+          <li>
+            Copy the annotation into
+            <code>game/csgo/annotations/local/${esc(pack.loadName)}/${esc(pack.loadName)}.txt</code>
+            (create the <code>${esc(pack.loadName)}</code> folder — CS2 expects that nested path).
+          </li>
+          <li>Copy the CFG into <code>game/csgo/cfg/${esc(pack.cfgBaseName)}.cfg</code>.</li>
+          <li>
+            Click <strong>Open CS2</strong> — Steam starts a private <code>${esc(pack.deMap)}</code> server
+            with <code>+exec ${esc(pack.cfgBaseName)}</code>.
+          </li>
+          <li class="hint">
+            If CS2 was already open, quit first, or paste in console (~):
+            <code>${esc(pack.consoleCommand || `map ${pack.deMap}; exec ${pack.cfgBaseName}`)}</code>
+          </li>
+          <li class="hint">
+            If markers still don’t show: confirm the nested folder path, then run
+            <code>sv_allow_annotations_access_level 2; annotation_load ${esc(pack.loadName)}</code>
+          </li>
         </ol>
 
         <div class="try-game-actions actions">

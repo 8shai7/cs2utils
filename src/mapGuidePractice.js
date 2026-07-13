@@ -27,11 +27,17 @@ export function guideLoadName(mapId, importId) {
 }
 
 export function buildPracticeCfg({ loadName }) {
+  const name = String(loadName || '').trim();
+  if (!name) throw new Error('Missing annotation load name for practice CFG.');
   return [
     '// AimKit — private practice with Map Guide annotations',
     '// Put this file in: game/csgo/cfg/',
+    '// Annotation file must be at: game/csgo/annotations/local/<name>/<name>.txt',
     'sv_cheats 1',
-    'sv_allow_annotations 1',
+    // March 2026 "Guns, Guides, and Games" replaced sv_allow_annotations with
+    // access levels: 0=off, 1=view, 2=edit/load custom local guides.
+    'sv_allow_annotations_access_level 2',
+    'sv_annotation_limits_max_rounds_per_half -1',
     'sv_infinite_ammo 2',
     'sv_grenade_trajectory_prac_trailtime 8',
     'sv_grenade_trajectory_prac_pipreview 1',
@@ -41,7 +47,7 @@ export function buildPracticeCfg({ loadName }) {
     'mp_maxmoney 60000',
     'mp_startmoney 60000',
     'bot_kick',
-    `annotation_load ${loadName}`,
+    `annotation_load ${name}`,
     '',
   ].join('\n');
 }
@@ -72,7 +78,8 @@ export function buildSteamPracticeUrl(mapId, cfgBaseName = 'aimkit_practice') {
 export function buildPracticeConsoleCommand(mapId, cfgBaseName = 'aimkit_practice') {
   const de = deMapName(mapId);
   if (!de) return null;
-  return `map ${de}; exec ${cfgBaseName}`;
+  // Set access level before exec so even an older downloaded CFG can still load guides.
+  return `map ${de}; sv_cheats 1; sv_allow_annotations_access_level 2; exec ${cfgBaseName}`;
 }
 
 /** Relative paths under game/csgo/ for writing via the File System Access API. */
