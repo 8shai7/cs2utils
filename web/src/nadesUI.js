@@ -427,9 +427,11 @@ function reviewHtml() {
                    <input type="checkbox" class="review-nade-check" value="${n.id}" />
                    <span>Select</span>
                  </label>
+                 <div class="review-actions-btns">
+                   <button class="btn primary" data-approve-nade="${n.id}">Approve</button>
+                   <button class="btn ghost" data-reject-nade="${n.id}">Reject</button>
+                 </div>
                  <input type="text" class="review-note" data-nade="${n.id}" placeholder="Optional note to the author" />
-                 <button class="btn primary" data-approve-nade="${n.id}">Approve nade</button>
-                 <button class="btn ghost" data-reject-nade="${n.id}">Reject</button>
                </div>`
             : `<p class="hint">Nade already ${esc(n.status)} — reviewing added media only.</p>`;
         return `<div class="nade-mine">${nadeCardHtml(n, { showStatus: true })}${mediaReview}${nadeButtons}</div>`;

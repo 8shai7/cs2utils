@@ -112,7 +112,7 @@ function nadesHtml() {
           <div class="admin-item-head">
             ${
               n.status === 'pending'
-                ? `<label class="review-check"><input type="checkbox" class="admin-nade-check" value="${n.id}" /><span></span></label>`
+                ? `<label class="review-check"><input type="checkbox" class="admin-nade-check" value="${n.id}" /><span>Select</span></label>`
                 : ''
             }
             <strong>${esc(n.title || 'Untitled')}</strong>

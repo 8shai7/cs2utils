@@ -261,9 +261,11 @@ cl_crosshair_recoil "${Number(e.followRecoil)}"
                    <input type="checkbox" class="review-nade-check" value="${e.id}" />
                    <span>Select</span>
                  </label>
+                 <div class="review-actions-btns">
+                   <button class="btn primary" data-approve-nade="${e.id}">Approve</button>
+                   <button class="btn ghost" data-reject-nade="${e.id}">Reject</button>
+                 </div>
                  <input type="text" class="review-note" data-nade="${e.id}" placeholder="Optional note to the author" />
-                 <button class="btn primary" data-approve-nade="${e.id}">Approve nade</button>
-                 <button class="btn ghost" data-reject-nade="${e.id}">Reject</button>
                </div>`:`<p class="hint">Nade already ${T(e.status)} — reviewing added media only.</p>`;return`<div class="nade-mine">${zt(e,{showStatus:!0})}${n}${r}</div>`}).join(``)}</div>`:`<p class="hint">Nothing pending review. Nice and clean.</p>`:`<p class="hint">Admins only.</p>`}function qt(e){if(!e.bannedUntil)return null;let t=new Date(e.bannedUntil);return t.getTime()<=Date.now()?null:t.getFullYear()>=9999?`permanently`:`until ${t.toLocaleString()}`}function Jt(){return h(y)?`<div class="users-table">
     ${Ot.map(e=>{let t=qt(e),n=e.role===`owner`?`<span class="hint">owner</span>`:e.role===`admin`?`<button class="btn btn-sm ghost" data-role-user="${e.id}" data-role="user">Revoke admin</button>`:`<button class="btn btn-sm" data-role-user="${e.id}" data-role="admin">Make admin</button>`,r=e.role===`owner`?``:t?`<span class="nade-badge rejected">banned ${T(t)}</span> <button class="btn btn-sm ghost" data-unban="${e.id}">Unban</button>`:`<select class="ban-duration" data-ban-dur="${e.id}">
                    <option value="24">1 day</option>
@@ -635,7 +637,7 @@ cl_crosshair_recoil "${Number(e.followRecoil)}"
         </div>`).join(``);return`
         <article class="panel admin-item">
           <div class="admin-item-head">
-            ${e.status===`pending`?`<label class="review-check"><input type="checkbox" class="admin-nade-check" value="${e.id}" /><span></span></label>`:``}
+            ${e.status===`pending`?`<label class="review-check"><input type="checkbox" class="admin-nade-check" value="${e.id}" /><span>Select</span></label>`:``}
             <strong>${K(e.title||`Untitled`)}</strong>
             <span class="nade-badge ${K(e.status)}">${K(e.status)}</span>
           </div>

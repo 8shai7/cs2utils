@@ -1614,8 +1614,27 @@ input[type='color'] {
 }
 
 .review-actions {
-  grid-template-columns: auto 1fr auto auto;
+  grid-template-columns: auto 1fr;
   align-items: center;
+}
+
+.review-actions-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.review-actions .review-note {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 80%, #000);
+  color: var(--text);
 }
 
 .users-table {
