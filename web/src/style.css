@@ -1483,12 +1483,59 @@ input[type='color'] {
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 0.55rem;
+  align-items: center;
+}
+
+.browse-nade-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.browse-select-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+  margin: 0.25rem 0 0.85rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.browse-select-bar .hint {
+  flex: 1 1 200px;
+  margin: 0;
 }
 
 .browse-try-field {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
+}
+
+.try-game-choices {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.try-game-choice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.55rem;
+  align-items: start;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 85%, #000);
+  cursor: pointer;
+}
+
+.try-game-choice input {
+  margin-top: 0.2rem;
 }
 
 .review-bulk-bar {
