@@ -7,7 +7,11 @@ import { requireAuth } from '../auth.js';
 import { ApiError } from '../util.js';
 
 const uploadDir = path.resolve(process.cwd(), config.uploadDir);
-fs.mkdirSync(uploadDir, { recursive: true });
+try {
+  fs.mkdirSync(uploadDir, { recursive: true });
+} catch {
+  // Read-only filesystem (e.g. serverless) — uploads to local disk won't persist.
+}
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadDir),

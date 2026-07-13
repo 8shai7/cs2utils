@@ -18,7 +18,8 @@ export const config = {
   apiUrl: process.env.API_URL || 'http://localhost:3001',
   ownerEmail: (process.env.OWNER_EMAIL || 'shaital121@gmail.com').trim().toLowerCase(),
   corsOrigin: process.env.CORS_ORIGIN || '*',
-  uploadDir: process.env.UPLOAD_DIR || 'uploads',
+  // On serverless (Vercel) only /tmp is writable, so default uploads there.
+  uploadDir: process.env.UPLOAD_DIR || (process.env.VERCEL ? '/tmp/uploads' : 'uploads'),
   imgbbApiKey: process.env.IMGBB_API_KEY || '',
   steamApiKey: process.env.STEAM_API_KEY || '',
   // Contact form → email. On Hostinger set SMTP_* to your mailbox (e.g.
