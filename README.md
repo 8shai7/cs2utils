@@ -24,24 +24,28 @@
 - **Submit your own** — registered users add nades (map + throw/landing points + media)
 - **Admin moderation** — submissions and media are reviewed before going public; roles are `user`/`admin`/`owner`
 
+## Project layout
+
+- **Repo root** — the Node.js/Express + MySQL **backend** (`src/`, `package.json`). It also serves the built frontend from `public/`.
+- **`web/`** — the Vite **frontend** (`web/src/`, `web/index.html`, `web/package.json`).
+- **`public/`** — the built frontend (committed), served by the backend.
+
 ## Quick start
 
-Frontend (repo root):
+Backend API (repo root — serves `/api` and the built frontend):
 
 ```bash
 npm install
-npm run dev
+cp .env.example .env   # then fill in your MySQL details
+npm run dev            # http://localhost:3001  (node --watch)
 ```
 
-Open the local URL Vite prints (usually `http://localhost:5173`).
-
-Backend API (`server/`, needed for the Nades DB + accounts):
+Frontend dev server (live reload, in `web/`):
 
 ```bash
-cd server
-cp .env.example .env   # then fill in your MySQL details
+cd web
 npm install
-npm run dev            # http://localhost:3001
+npm run dev            # http://localhost:5173
 ```
 
 The Vite dev server proxies `/api` and `/uploads` to the backend, and the API auto-creates its MySQL tables on first start.
@@ -49,11 +53,10 @@ The Vite dev server proxies `/api` and `/uploads` to the backend, and the API au
 ## Build
 
 ```bash
-npm run build
-npm run preview
+npm run build:web      # builds web/ and copies it into public/ (served by the backend)
 ```
 
-Static files are written to `dist/` and can be deployed to GitHub Pages, Netlify, Vercel, or any static host.
+Or build the frontend on its own: `cd web && npm run build` (output in `web/dist/`).
 
 ## Usage in CS2
 
@@ -76,64 +79,71 @@ work on any static host. **Everything else (accounts, Nades DB, Commands, Config
 Highlights, Pro settings, Contact) needs the Node API**, so those pages will show
 `/api/... 404` on a static-only deploy (e.g. GitHub Pages).
 
-### Full deploy — one folder (recommended, e.g. Hostinger)
+### Full deploy — the repo root is the app (recommended, e.g. Hostinger)
 
-Build the frontend **into the server**, then deploy just the `server/` folder as a
-Node app. It serves the SPA and `/api` from the same origin, so there's no proxy,
-no CORS, and no `VITE_API_URL` to set.
+The repo **root is the Node app**, and the built frontend is committed at
+`public/`, so the repo is deploy-ready — point a Node host straight at it. It
+serves the SPA and `/api` from the same origin (no proxy, no CORS, no
+`VITE_API_URL`).
 
-```bash
-# from the repo root
-npm install
-npm run build:server   # builds dist/ and copies it to server/public/
-```
+Create a **Node.js application** (Hostinger: hPanel → Advanced → *Setup Node.js
+App*) and connect this GitHub repo (branch `main`):
 
-Upload the `server/` folder (it now contains `public/`) to your Node host and
-configure the app:
-
-- **Application root:** `server`
+- **Application root:** `/` (the repo root)
 - **Startup file:** `src/index.js`  (or run `npm start`)
 - **Install command:** `npm install`
-- Add `server/.env` (copy from `server/.env.example`, fill in DB creds, a strong
-  `JWT_SECRET`, SMTP, etc.). With everything on one origin you can leave
-  `CORS_ORIGIN` default and skip `VITE_API_URL`.
+- Add `.env` (copy from `.env.example`, fill in DB creds, a strong `JWT_SECRET`,
+  SMTP, etc.). On one origin you can leave `CORS_ORIGIN` default and skip
+  `VITE_API_URL`.
 
-The server serves the frontend from `server/public` (or `../dist`, or
-`FRONTEND_DIR` if set). Rebuild with `npm run build:server` and re-upload
-`server/public` whenever the frontend changes.
+Then point the app at your domain — `https://your-domain/api/health` should
+return `{"ok":true}`.
 
-#### Deploy straight from GitHub (no build step on the host)
+When you change the frontend, run `npm run build:web` from the repo root and
+commit the refreshed `public/` (its filenames are content-hashed, so old assets
+are replaced).
 
-The built frontend is committed at **`server/public`**, so the repo is
-deploy-ready — point a host at it and just install + start the backend:
+### API on Vercel + frontend on Hostinger
 
-1. Create a **Node.js application** (Hostinger: hPanel → Advanced → *Setup
-   Node.js App*) and connect this GitHub repo (branch `main`).
-2. **Application root:** `server` · **Startup file:** `src/index.js`
-3. Run **npm install**, add `.env` (DB creds, a strong `JWT_SECRET`, SMTP…),
-   then **Start/Restart**.
-4. Point the app at your domain. It serves the site **and** `/api` from one
-   origin — `https://your-domain/api/health` should return `{"ok":true}`.
+The repo is ready to run the API as a Vercel serverless function (`api/index.js`
++ `vercel.json`) while the static frontend is hosted on Hostinger.
 
-When you change the frontend, run `npm run build:server` and commit the updated
-`server/public` (its filenames are content-hashed, so old assets are replaced).
+1. **API on Vercel:** import this GitHub repo into Vercel (it uses `vercel.json`).
+   Add Environment Variables in the Vercel project:
+   - `DB_HOST` = your Hostinger MySQL host (e.g. `srv1700.hstgr.io`), `DB_PORT`,
+     `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+   - `JWT_SECRET` (strong), `OWNER_EMAIL`
+   - `CORS_ORIGIN=https://aimkit.net,https://www.aimkit.net`
+   - `APP_URL=https://aimkit.net`, `API_URL=https://<project>.vercel.app`
+   - optional: `IMGBB_API_KEY`, `STEAM_API_KEY`, `SMTP_*`
+2. **Hostinger → Remote MySQL:** allow remote connections for the DB user
+   (Vercel IPs are dynamic, so add `%` / any host). Mind `max_connections`.
+3. **Frontend on Hostinger:** build pointing at the Vercel API and upload
+   `web/dist/` to `public_html`:
+   ```bash
+   cd web && VITE_API_URL=https://<project>.vercel.app/api npm run build
+   ```
+
+Serverless caveats: local `uploads/` don't persist on Vercel (avatars use ImgBB,
+but locally-stored pro photos/uploads won't survive), and the background
+schedulers don't run — trigger command/pro syncs from the admin UI instead.
 
 ### Static frontend + API on a subdomain (keep your static host)
 
 If the main domain stays a static site (e.g. `public_html` on Hostinger), host the
 API separately and point the frontend at it:
 
-1. **API:** create a Node.js app (hPanel → Advanced → Node.js) for a subdomain
-   like `api.aimkit.net`, startup file `server/src/index.js`, and set its `.env`
-   (including `CORS_ORIGIN=https://aimkit.net,https://www.aimkit.net`,
+1. **API:** create a Node.js app for a subdomain like `api.aimkit.net`, root `/`,
+   startup file `src/index.js`, and set its `.env` (including
+   `CORS_ORIGIN=https://aimkit.net,https://www.aimkit.net`,
    `APP_URL=https://aimkit.net`, `API_URL=https://api.aimkit.net`).
-2. **Frontend:** build it pointing at that API, then upload `dist/` to the static
-   host:
+2. **Frontend:** build it pointing at that API, then upload `web/dist/` to the
+   static host:
    ```bash
-   VITE_API_URL=https://api.aimkit.net/api npm run build
+   cd web && VITE_API_URL=https://api.aimkit.net/api npm run build
    ```
    All `/api` and `/uploads` requests then go to `api.aimkit.net` (CORS allows the
-   main domain). Rebuild + re-upload `dist/` whenever the frontend changes.
+   main domain). Rebuild + re-upload `web/dist/` whenever the frontend changes.
 
 > Symptom of a missing backend: the site loads but every `GET /api/...` returns
 > 404. Fix it by serving the API (single-server deploy above) or by pointing the
