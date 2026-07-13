@@ -11,9 +11,39 @@ export const pool = mysql.createPool({
   // Keep the pool small on serverless (many function instances share the DB's
   // max_connections); fail fast instead of hanging if the DB is unreachable.
   connectionLimit: Number(process.env.DB_POOL_LIMIT || (process.env.VERCEL ? 3 : 10)),
-  connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT_MS || 10000),
+  // Vercel ↔ remote MySQL can be slow on cold start; allow a longer default there.
+  connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT_MS || (process.env.VERCEL ? 20000 : 10000)),
   charset: 'utf8mb4_unicode_ci',
+  enableKeepAlive: true,
 });
+
+function isTransientDbError(err) {
+  const code = err?.code || '';
+  return (
+    code === 'ETIMEDOUT' ||
+    code === 'ECONNREFUSED' ||
+    code === 'ECONNRESET' ||
+    code === 'PROTOCOL_CONNECTION_LOST' ||
+    code === 'ER_CON_COUNT_ERROR' ||
+    code === 'TooManyConnections'
+  );
+}
+
+async function withDbRetry(fn, { attempts = 3, label = 'db' } = {}) {
+  let lastErr;
+  for (let i = 1; i <= attempts; i += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (!isTransientDbError(err) || i === attempts) throw err;
+      const waitMs = 400 * i;
+      console.warn(`[db] ${label} failed (${err.code || err.message}); retry ${i}/${attempts - 1} in ${waitMs}ms`);
+      await new Promise((r) => setTimeout(r, waitMs));
+    }
+  }
+  throw lastErr;
+}
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS users (
@@ -270,19 +300,24 @@ const MIGRATIONS = [
 ];
 
 export async function initDb() {
-  const conn = await pool.getConnection();
-  try {
-    for (const stmt of SCHEMA) {
-      await conn.query(stmt);
-    }
-    for (const stmt of MIGRATIONS) {
+  await withDbRetry(
+    async () => {
+      const conn = await pool.getConnection();
       try {
-        await conn.query(stmt);
-      } catch (err) {
-        console.warn('[db] migration skipped:', err.message);
+        for (const stmt of SCHEMA) {
+          await conn.query(stmt);
+        }
+        for (const stmt of MIGRATIONS) {
+          try {
+            await conn.query(stmt);
+          } catch (err) {
+            console.warn('[db] migration skipped:', err.message);
+          }
+        }
+      } finally {
+        conn.release();
       }
-    }
-  } finally {
-    conn.release();
-  }
+    },
+    { attempts: Number(process.env.DB_INIT_RETRIES || 3), label: 'init' },
+  );
 }

@@ -102,21 +102,34 @@ export async function initialize() {
   }
 }
 
-// `ready` always resolves to a status (never rejects) so a failed init surfaces
-// as a readable 500 instead of an unhandled rejection that crashes the function.
-export const ready = initialize()
-  .then(() => ({ ok: true }))
-  .catch((error) => {
-    console.error('[server] initialization failed:', error);
-    return { ok: false, error };
-  });
+// `getReady()` retries after a failed init so a transient DB timeout on a Vercel
+// cold start does not poison the whole warm instance.
+let readyPromise = null;
+export function getReady() {
+  if (!readyPromise) {
+    readyPromise = initialize()
+      .then(() => ({ ok: true }))
+      .catch((error) => {
+        console.error('[server] initialization failed:', error);
+        readyPromise = null;
+        return { ok: false, error };
+      });
+  }
+  return readyPromise;
+}
+
+/** @deprecated Prefer getReady() — kept for existing imports. */
+export const ready = {
+  then: (onFulfilled, onRejected) => getReady().then(onFulfilled, onRejected),
+  catch: (onRejected) => getReady().catch(onRejected),
+};
 
 export default app;
 
 // Start a standalone HTTP server unless we're running on a serverless platform
 // (Vercel imports `app`/`ready` from src via api/index.js instead).
 if (!process.env.VERCEL) {
-  ready.then((status) => {
+  getReady().then((status) => {
     if (!status.ok) {
       console.error('[server] Failed to initialize database:', status.error?.message);
       process.exit(1);
