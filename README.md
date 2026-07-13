@@ -41,6 +41,20 @@ Static files are written to `dist/` and can be deployed to GitHub Pages, Netlify
 - [Vite](https://vitejs.dev/)
 - [csgo-sharecode](https://www.npmjs.com/package/csgo-sharecode) for encoding/decoding CS:GO/CS2 share codes
 
+## Publish to GitHub
+
+This project is its own git repository. To push it to a new GitHub repo:
+
+1. Create an empty repository named `cs2-crosshair-converter` on GitHub (no README or `.gitignore`).
+2. From this folder, run:
+
+```bash
+git remote add origin https://github.com/YOUR_USERNAME/cs2-crosshair-converter.git
+git push -u origin main
+```
+
+3. Enable GitHub Pages: **Settings → Pages → Build and deployment → GitHub Actions**.
+
 ## License
 
 MIT
