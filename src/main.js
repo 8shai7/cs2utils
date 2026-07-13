@@ -105,7 +105,7 @@ app.innerHTML = `
         <section class="panel preview-panel">
           <div class="panel-head">
             <h2>Preview</h2>
-            <span class="panel-tag">Actual in-game size</span>
+            <span class="panel-tag">Relative to full screen</span>
           </div>
           <div class="preview-stage">
             <canvas id="preview-canvas" width="280" height="280" aria-label="Crosshair preview"></canvas>
@@ -442,6 +442,14 @@ const previewStats = document.querySelector('#preview-stats');
 const previewResSelect = /** @type {HTMLSelectElement} */ (document.querySelector('#preview-res'));
 const previewResScale = document.querySelector('#preview-res-scale');
 
+// The preview box represents the FULL screen: its backing store is 1080 units
+// tall (a 1080p screen), so the crosshair is drawn at its real size as a
+// fraction of the whole screen, then CSS-downscaled into the panel. This is
+// why crosshairs look small here — use the Magnifier to inspect the detail.
+const PREVIEW_BACKING = 1080;
+canvas.width = PREVIEW_BACKING;
+canvas.height = PREVIEW_BACKING;
+
 // Common CS2 resolutions. The crosshair scales with vertical resolution, so the
 // pixel scale is height / 1080 (1080p ≈ 1 unit per pixel).
 const PREVIEW_RESOLUTIONS = [
@@ -457,9 +465,11 @@ const PREVIEW_RESOLUTIONS = [
 
 let lastPreviewCrosshair = null;
 
+// Canvas pixels per crosshair unit. The backing store represents a full 1080-unit
+// screen, so this maps the crosshair to a true fraction of the whole screen
+// (independent of the chosen resolution, matching how CS2 scales the crosshair).
 function previewScale() {
-  const res = PREVIEW_RESOLUTIONS.find((r) => r.id === previewResSelect?.value) || PREVIEW_RESOLUTIONS[0];
-  return res.h / 1080;
+  return canvas.height / 1080;
 }
 
 const magnifier = initMagnifier({
@@ -472,7 +482,18 @@ const magnifier = initMagnifier({
 function drawPreview(crosshair) {
   lastPreviewCrosshair = crosshair;
   renderCrosshairPreview(canvas, crosshair, previewScale());
-  if (previewResScale) previewResScale.textContent = `${previewScale().toFixed(2)}× scale`;
+  if (previewResScale) {
+    if (crosshair) {
+      // Show the crosshair's real on-screen size for the selected resolution.
+      const res = PREVIEW_RESOLUTIONS.find((r) => r.id === previewResSelect?.value) || PREVIEW_RESOLUTIONS[0];
+      const f = res.h / 1080;
+      const arms = Math.max(0, Math.round(crosshair.length * f));
+      const thick = Math.max(1, Math.round(crosshair.thickness * f));
+      previewResScale.textContent = `≈ ${arms}px arms · ${thick}px thick @ ${res.h}p`;
+    } else {
+      previewResScale.textContent = '';
+    }
+  }
   magnifier.refresh();
 }
 const crosshairStatus = document.querySelector('#crosshair-status');

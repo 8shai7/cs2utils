@@ -485,7 +485,9 @@ button.account-chip:hover {
   aspect-ratio: 1;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  image-rendering: pixelated;
+  /* The backing store is a high-res full-screen render downscaled to the box,
+     so use smooth scaling here (the magnifier keeps its own pixelated zoom). */
+  image-rendering: auto;
 }
 
 .preview-res-field {
