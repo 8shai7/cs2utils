@@ -59,6 +59,7 @@ app.innerHTML = `
         that keeps your cm/360 the same across games.
       </p>
       <nav class="tool-nav" role="tablist" aria-label="Tools">
+        <span class="tool-nav-group" aria-hidden="true">Tune your aim</span>
         <button class="tool-tab active" data-tool="crosshair" role="tab" aria-selected="true">
           <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
           <span>Crosshair</span>
@@ -71,6 +72,12 @@ app.innerHTML = `
           <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="4" y1="8" x2="20" y2="8"/><circle cx="9" cy="8" r="2.6" fill="currentColor" stroke="none"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="15" cy="16" r="2.6" fill="currentColor" stroke="none"/></svg>
           <span>PSA Calculator</span>
         </button>
+        <span class="tool-nav-sep" aria-hidden="true"></span>
+        <span class="tool-nav-group" aria-hidden="true">Learn &amp; copy setups</span>
+        <button class="tool-tab" data-tool="pros" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3"/><path d="M7 5H4v2a3 3 0 0 0 3 3"/></svg>
+          <span>Pros</span>
+        </button>
         <button class="tool-tab" data-tool="nades" role="tab" aria-selected="false">
           <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
           <span>Nades DB</span>
@@ -79,6 +86,8 @@ app.innerHTML = `
           <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3"/><line x1="13" y1="15" x2="17" y2="15"/></svg>
           <span>Commands</span>
         </button>
+        <span class="tool-nav-sep" aria-hidden="true"></span>
+        <span class="tool-nav-group" aria-hidden="true">Community</span>
         <button class="tool-tab" data-tool="configs" role="tab" aria-selected="false">
           <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M12 11v6"/><path d="M9.5 14.5 12 17l2.5-2.5"/></svg>
           <span>Configs</span>
@@ -86,10 +95,6 @@ app.innerHTML = `
         <button class="tool-tab" data-tool="highlights" role="tab" aria-selected="false">
           <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg>
           <span>Highlights</span>
-        </button>
-        <button class="tool-tab" data-tool="pros" role="tab" aria-selected="false">
-          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3"/><path d="M7 5H4v2a3 3 0 0 0 3 3"/></svg>
-          <span>Pros</span>
         </button>
       </nav>
       <p class="tool-desc" id="tool-desc"></p>

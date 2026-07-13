@@ -301,12 +301,34 @@ button.account-chip:hover {
 .tool-nav {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.35rem;
   margin-top: 1.25rem;
-  padding: 0.25rem;
+  padding: 0.5rem;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--panel-border);
+}
+
+/* Full-width group headers so related tools are visually clustered. */
+.tool-nav-group {
+  flex-basis: 100%;
+  margin: 0.35rem 0 0.05rem;
+  padding-left: 0.55rem;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+  opacity: 0.75;
+}
+
+.tool-nav-group:first-child {
+  margin-top: 0;
+}
+
+.tool-nav-sep {
+  display: none;
 }
 
 .tool-tab {
