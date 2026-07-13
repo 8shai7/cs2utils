@@ -1430,6 +1430,54 @@ input[type='color'] {
   align-items: start;
 }
 
+.nade-import {
+  display: grid;
+  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+  gap: 1.2rem;
+  align-items: start;
+}
+
+.nade-import .nade-steps code,
+.nade-steps code {
+  font-size: 0.85em;
+  padding: 0.05em 0.35em;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--panel) 70%, #000);
+  border: 1px solid var(--panel-border);
+}
+
+.guide-preview-list {
+  display: grid;
+  gap: 0.35rem;
+  max-height: 220px;
+  overflow: auto;
+  margin-top: 0.6rem;
+}
+
+.guide-preview-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.15rem 0.55rem;
+  align-items: center;
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.guide-preview-item .hint {
+  grid-column: 2;
+  margin: 0;
+}
+
+.guide-preview-item.active {
+  border-color: color-mix(in srgb, var(--accent, #5b8cff) 70%, var(--panel-border));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #5b8cff) 40%, transparent);
+}
+
 .nade-add-media {
   display: flex;
   flex-wrap: wrap;
@@ -1477,7 +1525,8 @@ input[type='color'] {
 }
 
 @media (max-width: 720px) {
-  .nade-add {
+  .nade-add,
+  .nade-import {
     grid-template-columns: 1fr;
   }
   .review-actions,

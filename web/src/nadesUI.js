@@ -30,6 +30,7 @@ let reviewData = [];
 let usersData = [];
 
 let draft = newDraft();
+let guideImport = newGuideImport();
 
 function newDraft() {
   return {
@@ -41,6 +42,16 @@ function newDraft() {
     description: '',
     start: null,
     end: null,
+  };
+}
+
+function newGuideImport() {
+  return {
+    text: '',
+    fileName: '',
+    side: 't',
+    parsed: null,
+    selected: null,
   };
 }
 
@@ -110,7 +121,7 @@ async function updateReviewCount() {
 
 async function loadView(next) {
   view = next;
-  loading = next !== 'add';
+  loading = !['add', 'import'].includes(next);
   if (loading) render();
   try {
     if (view === 'browse') browseData = await api.nades.list(browseFilter);
@@ -249,6 +260,81 @@ function addHtml() {
     </div>`;
 }
 
+function guideImportHtml() {
+  if (!session) return loginPrompt('import a CS2 map guide');
+  const parsed = guideImport.parsed;
+  const selected =
+    parsed && guideImport.selected != null ? parsed.nades[guideImport.selected] : parsed?.nades?.[0] || null;
+  const previewList = parsed
+    ? `<div class="guide-preview-list">
+        ${parsed.nades
+          .map((n, i) => {
+            const t = typeInfo(n.type);
+            const active = (guideImport.selected ?? 0) === i;
+            return `<button type="button" class="guide-preview-item ${active ? 'active' : ''}" data-guide-idx="${i}">
+              <span class="nade-chip" style="--chip:${t.color}">${esc(t.name)}</span>
+              <strong>${esc(n.title)}</strong>
+              <span class="hint">${esc(techniqueName(n.technique))}</span>
+            </button>`;
+          })
+          .join('')}
+      </div>`
+    : '';
+
+  return `
+    <div class="nade-import">
+      <div class="nade-add-map">
+        <ol class="nade-steps">
+          <li>In CS2, save a guide with <code>annotation_save name</code>.</li>
+          <li>Upload the <code>.txt</code> from <code>game/csgo/annotations/local/</code> (or paste it).</li>
+          <li>Preview lineups on the radar, then import — they enter review as pending.</li>
+        </ol>
+        <canvas id="guide-preview-canvas" class="nade-canvas" width="${CANVAS_SIZE}" height="${CANVAS_SIZE}"></canvas>
+        <p class="hint" id="guide-preview-label">${
+          selected
+            ? `${esc(selected.title)} · ${esc(mapName(selected.map))}`
+            : 'Parsed lineups will preview here.'
+        }</p>
+        ${previewList}
+      </div>
+      <div class="nade-add-form">
+        <label class="field">
+          <span>Map guide file (.txt)</span>
+          <input id="guide-file" type="file" accept=".txt,text/plain" />
+        </label>
+        ${
+          guideImport.fileName
+            ? `<p class="hint">Loaded: <strong>${esc(guideImport.fileName)}</strong></p>`
+            : ''
+        }
+        <label class="field">
+          <span>Or paste guide text</span>
+          <textarea id="guide-text" rows="10" placeholder="<!-- kv3 encoding:text:... -->&#10;{&#10;  MapName = &quot;de_mirage&quot;&#10;  MapAnnotationNode0 = { ... }&#10;}">${esc(guideImport.text)}</textarea>
+        </label>
+        <label class="field">
+          <span>Default side for imported nades</span>
+          <select id="guide-side">${optionList(SIDES, guideImport.side)}</select>
+        </label>
+        <div class="actions">
+          <button class="btn" type="button" id="guide-parse">Preview lineups</button>
+          <button class="btn primary" type="button" id="guide-import" ${parsed ? '' : 'disabled'}>
+            Import ${parsed ? parsed.nades.length : ''} for review
+          </button>
+          <button class="btn ghost" type="button" id="guide-clear">Clear</button>
+        </div>
+        ${
+          parsed
+            ? `<p class="hint">Detected <strong>${esc(mapName(parsed.map))}</strong> (${esc(
+                parsed.mapName,
+              )}) — ${parsed.nades.length} grenade lineup${parsed.nades.length === 1 ? '' : 's'}${
+                parsed.skipped ? `, skipped ${parsed.skipped}` : ''
+              }.</p>`
+            : `<p class="hint">Official CS2 Map Guides / annotation files only. World coords are mapped onto AimKit’s radar automatically.</p>`
+        }
+      </div>
+    </div>`;
+}
+
 function mineHtml() {
   if (!session) return loginPrompt('see and manage your nades');
   if (!mineData.length) return `<p class="hint">You haven't added any nades yet.</p>`;
@@ -342,7 +428,7 @@ function usersHtml() {
 
 function subnavHtml() {
   const items = [['browse', 'Browse']];
-  if (session) items.push(['add', 'Add nade'], ['mine', 'My nades']);
+  if (session) items.push(['add', 'Add nade'], ['import', 'Import guide'], ['mine', 'My nades']);
   if (isAdmin(session)) items.push(['review', `Review${reviewCount ? ` (${reviewCount})` : ''}`], ['users', 'Users']);
   return `<nav class="nades-subnav">${items
     .map(([id, label]) => `<button class="tool-tab ${view === id ? 'active' : ''}" data-view="${id}">${esc(label)}</button>`)
@@ -354,6 +440,8 @@ function viewBodyHtml() {
   switch (view) {
     case 'add':
       return addHtml();
+    case 'import':
+      return guideImportHtml();
     case 'mine':
       return mineHtml();
     case 'review':
@@ -379,7 +467,7 @@ function render() {
 }
 
 function drawCanvases() {
-  tool.querySelectorAll('canvas.nade-canvas:not(.interactive)').forEach((c) => {
+  tool.querySelectorAll('canvas.nade-canvas:not(.interactive):not(#guide-preview-canvas)').forEach((c) => {
     renderThrow(c, {
       mapId: c.dataset.map,
       type: c.dataset.type,
@@ -388,12 +476,30 @@ function drawCanvases() {
     });
   });
   drawAddCanvas();
+  drawGuidePreviewCanvas();
 }
 
 function drawAddCanvas() {
   const c = tool.querySelector('#nade-add-canvas');
   if (!c) return;
   renderThrow(c, { mapId: draft.map, type: draft.type, start: draft.start, end: draft.end });
+}
+
+function drawGuidePreviewCanvas() {
+  const c = tool.querySelector('#guide-preview-canvas');
+  if (!c) return;
+  const parsed = guideImport.parsed;
+  const nade = parsed?.nades?.[guideImport.selected ?? 0];
+  if (!nade) {
+    renderThrow(c, { mapId: 'mirage', type: 'smoke', start: null, end: null });
+    return;
+  }
+  renderThrow(c, {
+    mapId: nade.map,
+    type: nade.type,
+    start: nade.start,
+    end: nade.end,
+  });
 }
 
 function wire() {
@@ -453,6 +559,28 @@ function wire() {
     if (coords) coords.textContent = 'Click the map to set the throw position, then click again for the landing spot.';
   });
   tool.querySelector('#nade-add-form')?.addEventListener('submit', onAddSubmit);
+
+  // Map guide import
+  tool.querySelector('#guide-file')?.addEventListener('change', onGuideFile);
+  tool.querySelector('#guide-text')?.addEventListener('input', (e) => {
+    guideImport.text = e.target.value;
+  });
+  tool.querySelector('#guide-side')?.addEventListener('change', (e) => {
+    guideImport.side = e.target.value;
+  });
+  tool.querySelector('#guide-parse')?.addEventListener('click', onGuideParse);
+  tool.querySelector('#guide-import')?.addEventListener('click', onGuideImport);
+  tool.querySelector('#guide-clear')?.addEventListener('click', () => {
+    guideImport = newGuideImport();
+    render();
+    setStatus('Cleared map guide.', '');
+  });
+  tool.querySelectorAll('[data-guide-idx]').forEach((b) =>
+    b.addEventListener('click', () => {
+      guideImport.selected = Number(b.dataset.guideIdx);
+      render();
+    }),
+  );
 
   // My nades: add media / delete
   tool.querySelectorAll('[data-add-media]').forEach((b) =>
@@ -522,6 +650,69 @@ async function onAddSubmit(e) {
     draft = newDraft();
     await loadView('mine');
     setStatus('Nade submitted! It will appear publicly once an admin approves it.', 'ok');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+}
+
+async function onGuideFile(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try {
+    guideImport.fileName = file.name;
+    guideImport.text = await file.text();
+    guideImport.parsed = null;
+    guideImport.selected = null;
+    render();
+    setStatus(`Loaded ${file.name}. Click Preview lineups.`, 'ok');
+  } catch {
+    setStatus('Could not read that file.', 'error');
+  }
+}
+
+async function onGuideParse() {
+  const text = (tool.querySelector('#guide-text')?.value || guideImport.text || '').trim();
+  guideImport.text = text;
+  guideImport.side = tool.querySelector('#guide-side')?.value || guideImport.side;
+  if (!text) {
+    setStatus('Upload or paste a CS2 map guide .txt first.', 'error');
+    return;
+  }
+  try {
+    setStatus('Parsing map guide…', '');
+    const parsed = await api.nades.parseMapGuide(text);
+    guideImport.parsed = parsed;
+    guideImport.selected = 0;
+    render();
+    setStatus(
+      `Found ${parsed.nades.length} lineup${parsed.nades.length === 1 ? '' : 's'} on ${mapName(parsed.map)}.`,
+      'ok',
+    );
+  } catch (err) {
+    guideImport.parsed = null;
+    render();
+    setStatus(err.message, 'error');
+  }
+}
+
+async function onGuideImport() {
+  if (!guideImport.parsed?.nades?.length) {
+    setStatus('Preview the guide first so you can confirm the lineups.', 'error');
+    return;
+  }
+  guideImport.side = tool.querySelector('#guide-side')?.value || guideImport.side;
+  try {
+    setStatus('Importing lineups…', '');
+    const result = await api.nades.importMapGuide({
+      nades: guideImport.parsed.nades,
+      side: guideImport.side,
+    });
+    guideImport = newGuideImport();
+    await loadView('mine');
+    setStatus(
+      `Imported ${result.count} nade${result.count === 1 ? '' : 's'} — pending admin review.`,
+      'ok',
+    );
   } catch (err) {
     setStatus(err.message, 'error');
   }
@@ -619,7 +810,7 @@ export async function initNadesTool() {
     session = user;
     await updateReviewCount();
     // Drop into a view the current role is allowed to see.
-    if (!session && ['add', 'mine', 'review', 'users'].includes(view)) view = 'browse';
+    if (!session && ['add', 'import', 'mine', 'review', 'users'].includes(view)) view = 'browse';
     if (session && !isAdmin(session) && ['review', 'users'].includes(view)) view = 'browse';
     await loadView(view);
   });
