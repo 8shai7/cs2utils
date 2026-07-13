@@ -232,6 +232,17 @@ app.innerHTML = `
             </label>
           </div>
 
+          <div class="sens-grid">
+            <label class="field hidden" id="source-yaw-field">
+              <span>Source custom yaw (°/count)</span>
+              <input id="sens-source-yaw" type="number" min="0.00001" step="0.0001" inputmode="decimal" value="0.022" />
+            </label>
+            <label class="field hidden" id="target-yaw-field">
+              <span>Target custom yaw (°/count)</span>
+              <input id="sens-target-yaw" type="number" min="0.00001" step="0.0001" inputmode="decimal" value="0.022" />
+            </label>
+          </div>
+
           <div class="actions">
             <button class="btn primary" id="sens-swap">Swap games</button>
             <button class="btn" id="copy-sens">Copy converted sens</button>
@@ -266,6 +277,10 @@ const sensSourceDpi = /** @type {HTMLInputElement} */ (document.querySelector('#
 const sensTargetDpi = /** @type {HTMLInputElement} */ (document.querySelector('#sens-target-dpi'));
 const sensSourceMYaw = /** @type {HTMLInputElement} */ (document.querySelector('#sens-source-myaw'));
 const sensTargetMYaw = /** @type {HTMLInputElement} */ (document.querySelector('#sens-target-myaw'));
+const sensSourceYaw = /** @type {HTMLInputElement} */ (document.querySelector('#sens-source-yaw'));
+const sensTargetYaw = /** @type {HTMLInputElement} */ (document.querySelector('#sens-target-yaw'));
+const sourceYawField = document.querySelector('#source-yaw-field');
+const targetYawField = document.querySelector('#target-yaw-field');
 const mYawFields = document.querySelector('#m-yaw-fields');
 const sensCm360 = document.querySelector('#sens-cm360');
 const sensStats = document.querySelector('#sens-stats');
@@ -384,6 +399,9 @@ function updateMYawVisibility() {
   const show =
     GAMES[sensFromGame.value]?.supportsMYaw || GAMES[sensToGame.value]?.supportsMYaw;
   mYawFields?.classList.toggle('hidden', !show);
+
+  sourceYawField?.classList.toggle('hidden', !GAMES[sensFromGame.value]?.custom);
+  targetYawField?.classList.toggle('hidden', !GAMES[sensToGame.value]?.custom);
 }
 
 function updateSensitivity() {
@@ -392,8 +410,19 @@ function updateSensitivity() {
   const targetDpi = Number(sensTargetDpi.value);
   const sourceMYaw = Number(sensSourceMYaw.value) || 0.022;
   const targetMYaw = Number(sensTargetMYaw.value) || 0.022;
+  const sourceCustomYaw = Number(sensSourceYaw.value);
+  const targetCustomYaw = Number(sensTargetYaw.value);
 
   updateMYawVisibility();
+
+  if (GAMES[sensFromGame.value]?.custom && !(sourceCustomYaw > 0)) {
+    setStatus(sensitivityStatus, 'Enter a valid source custom yaw (° per count).', 'error');
+    return;
+  }
+  if (GAMES[sensToGame.value]?.custom && !(targetCustomYaw > 0)) {
+    setStatus(sensitivityStatus, 'Enter a valid target custom yaw (° per count).', 'error');
+    return;
+  }
 
   if (!Number.isFinite(sourceSens) || sourceSens <= 0) {
     sensTarget.value = '';
@@ -416,6 +445,8 @@ function updateSensitivity() {
     targetDpi,
     sourceMYaw,
     targetMYaw,
+    sourceCustomYaw,
+    targetCustomYaw,
   });
 
   const fromName = GAMES[sensFromGame.value].name;
@@ -689,7 +720,7 @@ renderEditorOutputs();
 sensFromGame.innerHTML = gameOptionsHtml('cs2');
 sensToGame.innerHTML = gameOptionsHtml('valorant');
 
-[sensFromGame, sensToGame, sensSource, sensSourceDpi, sensTargetDpi, sensSourceMYaw, sensTargetMYaw].forEach((el) => {
+[sensFromGame, sensToGame, sensSource, sensSourceDpi, sensTargetDpi, sensSourceMYaw, sensTargetMYaw, sensSourceYaw, sensTargetYaw].forEach((el) => {
   el.addEventListener('input', updateSensitivity);
   el.addEventListener('change', updateSensitivity);
 });
