@@ -58,29 +58,36 @@ export function practicePackModalHtml(pack, { esc, lineupCount = 1 }) {
     lineupCount > 1
       ? `${lineupCount} lineups merged into one annotation file`
       : '1 lineup annotation file';
+  const guidePath = `game/csgo/annotations/local/${pack.loadName}/${pack.loadName}.txt`;
+  const cfgPath = `game/csgo/cfg/${pack.cfgBaseName}.cfg`;
   return `
     <div class="try-game-modal" role="dialog" aria-modal="true" aria-label="Try in game">
       <div class="try-game-card">
-        <h3>Try in CS2</h3>
-        <p class="hint">Private practice on <strong>${esc(pack.deMap)}</strong> — ${esc(countLabel)}.</p>
-        <p class="hint">Skip downloads if you already have the files in your CS2 folders.</p>
+        <header class="try-game-head">
+          <h3>Try in CS2</h3>
+          <p class="hint">Private practice on <strong>${esc(pack.deMap)}</strong> — ${esc(
+            countLabel,
+          )}. Skip downloads if you already have the files in your CS2 folders.</p>
+        </header>
 
         <div class="try-game-choices">
-          <label class="try-game-choice">
+          <label class="try-game-choice" for="try-dl-guide">
             <input type="checkbox" id="try-dl-guide" checked />
-            <span>
-              Annotation file <code>${esc(pack.loadName)}.txt</code><br />
-              <span class="hint">→ <code>game/csgo/annotations/local/${esc(pack.loadName)}/${esc(
-                pack.loadName,
-              )}.txt</code></span>
+            <span class="try-game-choice-body">
+              <span class="try-game-choice-title">Annotation file <code>${esc(pack.loadName)}.txt</code></span>
+              <span class="try-game-path"><span class="try-game-path-arrow" aria-hidden="true">→</span><code>${esc(
+                guidePath,
+              )}</code></span>
             </span>
           </label>
-          <label class="try-game-choice">
+          <label class="try-game-choice" for="try-dl-cfg">
             <input type="checkbox" id="try-dl-cfg" checked />
-            <span>
-              Practice CFG <code>${esc(pack.cfgBaseName)}.cfg</code><br />
-              <span class="hint">→ <code>game/csgo/cfg/${esc(pack.cfgBaseName)}.cfg</code>
-              (loads <code>annotation_load ${esc(pack.loadName)}</code>)</span>
+            <span class="try-game-choice-body">
+              <span class="try-game-choice-title">Practice CFG <code>${esc(pack.cfgBaseName)}.cfg</code></span>
+              <span class="try-game-path"><span class="try-game-path-arrow" aria-hidden="true">→</span><code>${esc(
+                cfgPath,
+              )}</code></span>
+              <span class="hint try-game-choice-note">loads <code>annotation_load ${esc(pack.loadName)}</code></span>
             </span>
           </label>
         </div>
@@ -93,12 +100,12 @@ export function practicePackModalHtml(pack, { esc, lineupCount = 1 }) {
           )}</code> server with <code>+exec ${esc(pack.cfgBaseName)}</code>.</li>
         </ol>
 
-        <div class="actions">
+        <div class="try-game-actions actions">
           <button class="btn" type="button" data-try-game-download>Download selected</button>
           <button class="btn primary" type="button" data-try-game-open>Open CS2</button>
           <button class="btn ghost" type="button" data-try-game-close>Close</button>
         </div>
-        <p class="hint" data-try-game-status></p>
+        <p class="hint try-game-status" data-try-game-status></p>
       </div>
     </div>`;
 }
