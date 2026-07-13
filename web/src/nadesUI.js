@@ -20,6 +20,7 @@ import {
   practicePackModalHtml,
   readDownloadOptions,
 } from './tryInGame.js';
+import { showToast } from './toast.js';
 
 const CANVAS_SIZE = 360;
 const BROWSE_TRY_MAX = 100;
@@ -97,12 +98,16 @@ function optionList(items, selected) {
     .join('');
 }
 
-function setStatus(text, kind = '') {
+function setStatus(text, kind = '', opts = {}) {
   statusMsg = { text, kind };
   const el = tool?.querySelector('#nades-status');
   if (el) {
     el.textContent = text;
     el.className = `status${kind ? ` ${kind}` : ''}`;
+  }
+  // Jumping viewport toast so limit / validation mistakes aren't missed while browsing.
+  if ((kind === 'error' || kind === 'warn') && text) {
+    showToast(text, { kind, title: opts.title });
   }
 }
 
@@ -1024,13 +1029,19 @@ function onBrowseSelectToggle(id, map, wantSelected) {
   }
 
   if (browseSelected.size >= BROWSE_TRY_MAX && !browseSelected.has(id)) {
-    setStatus(`You can select at most ${BROWSE_TRY_MAX} lineups.`, 'error');
+    setStatus(`You can select at most ${BROWSE_TRY_MAX} lineups at once.`, 'error', {
+      title: 'Too many lineups',
+    });
     return false;
   }
 
   for (const [, selectedMap] of browseSelected) {
     if (selectedMap !== map) {
-      setStatus('Selected lineups must be on the same map.', 'error');
+      setStatus(
+        `You can only select lineups from one map. Clear your selection or pick more from ${mapName(selectedMap)}.`,
+        'error',
+        { title: 'One map only' },
+      );
       return false;
     }
   }
@@ -1075,11 +1086,15 @@ function updateBrowseSelectBar() {
 async function onTryNades(nadeIds) {
   const ids = [...new Set((nadeIds || []).map(Number).filter((id) => Number.isFinite(id) && id > 0))];
   if (!ids.length) {
-    setStatus(`Select at least one lineup (max ${BROWSE_TRY_MAX}, same map).`, 'error');
+    setStatus(`Select at least one lineup (max ${BROWSE_TRY_MAX}, same map).`, 'error', {
+      title: 'Nothing selected',
+    });
     return;
   }
   if (ids.length > BROWSE_TRY_MAX) {
-    setStatus(`You can open at most ${BROWSE_TRY_MAX} lineups at once.`, 'error');
+    setStatus(`You can open at most ${BROWSE_TRY_MAX} lineups at once.`, 'error', {
+      title: 'Too many lineups',
+    });
     return;
   }
   try {
