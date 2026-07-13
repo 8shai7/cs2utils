@@ -55,8 +55,8 @@ app.innerHTML = `
       </div>
       <h1>AimKit</h1>
       <p class="hero-sub">
-        Crosshair code conversion with live preview, plus FPS sensitivity conversion
-        that keeps your cm/360 the same across games.
+        Everything you need for your CS2 setup — crosshairs, sensitivity matching,
+        nades, commands and pro settings. All in one place, free of charge.
       </p>
       <nav class="tool-nav" role="tablist" aria-label="Tools">
         <span class="tool-nav-group" aria-hidden="true">Tune your aim</span>
