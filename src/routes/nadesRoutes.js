@@ -359,22 +359,8 @@ nadesRoutes.post(
       throw new ApiError(400, 'All nades must be on the same map to open together in CS2.');
     }
 
-    // Prefer the original imported guide text when every nade shares one import.
-    const importIds = [...new Set(rows.map((r) => r.guide_import_id).filter(Boolean))];
-    if (importIds.length === 1 && rows.every((r) => r.guide_import_id === importIds[0])) {
-      const [guides] = await pool.query('SELECT * FROM map_guide_imports WHERE id = ?', [importIds[0]]);
-      if (guides.length) {
-        return res.json({
-          pack: buildPracticePack({
-            mapId: guides[0].map,
-            guideText: guides[0].guide_text,
-            importId: guides[0].id,
-          }),
-          source: 'import',
-        });
-      }
-    }
-
+    // Always rebuild from the selected nades only — do not reuse the original
+    // map-guide import text, which would include every lineup from that guide.
     const nades = rows.map((r) => ({
       title: r.title,
       description: r.description || '',
@@ -389,6 +375,7 @@ nadesRoutes.post(
           loadName: `aimkit_${mapId}_x${rows.length}_${ids[0]}`,
         }),
         source: 'nades',
+        count: nades.length,
       });
     } catch (err) {
       throw new ApiError(400, err.message || 'Could not build practice pack.');
