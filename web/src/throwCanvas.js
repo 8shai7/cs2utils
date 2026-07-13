@@ -8,8 +8,37 @@
 
 import { typeInfo, mapName } from './nades.js';
 
-/** Draw the stylized top-down map backdrop + label. */
-function drawMapBackdrop(ctx, size, mapId) {
+// Lazy-loaded, cached radar images (bundled under public/maps/<id>.png).
+const radarImages = {};
+const lastRender = new WeakMap();
+
+function radarUrl(mapId) {
+  const base = (import.meta.env && import.meta.env.BASE_URL) || '/';
+  return `${base}maps/${mapId}.png`;
+}
+
+function getRadar(mapId, redraw) {
+  let entry = radarImages[mapId];
+  if (!entry) {
+    entry = { img: new Image(), loaded: false, error: false, waiters: new Set() };
+    radarImages[mapId] = entry;
+    entry.img.onload = () => {
+      entry.loaded = true;
+      entry.waiters.forEach((fn) => fn());
+      entry.waiters.clear();
+    };
+    entry.img.onerror = () => {
+      entry.error = true;
+      entry.waiters.clear();
+    };
+    entry.img.src = radarUrl(mapId);
+  }
+  if (!entry.loaded && !entry.error && redraw) entry.waiters.add(redraw);
+  return entry;
+}
+
+/** Draw the map radar image (or a stylized fallback while it loads). */
+function drawMapBackdrop(ctx, size, mapId, redraw) {
   const gradient = ctx.createLinearGradient(0, 0, size, size);
   gradient.addColorStop(0, '#26313f');
   gradient.addColorStop(0.5, '#2f3d4e');
@@ -17,6 +46,16 @@ function drawMapBackdrop(ctx, size, mapId) {
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);
 
+  const radar = getRadar(mapId, redraw);
+  if (radar.loaded) {
+    ctx.drawImage(radar.img, 0, 0, size, size);
+    // Subtle darken so throw/landing markers stay readable over the radar.
+    ctx.fillStyle = 'rgba(13,17,23,0.18)';
+    ctx.fillRect(0, 0, size, size);
+    return;
+  }
+
+  // Fallback (loading or image unavailable): grid + map name.
   ctx.strokeStyle = 'rgba(255,255,255,0.06)';
   ctx.lineWidth = 1;
   for (let i = 0; i <= size; i += size / 10) {
@@ -45,8 +84,13 @@ export function renderThrow(canvas, { mapId, type = 'smoke', start = null, end =
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   const size = canvas.width;
+  lastRender.set(canvas, { mapId, type, start, end });
   ctx.clearRect(0, 0, size, size);
-  drawMapBackdrop(ctx, size, mapId);
+  // Re-render this canvas once the radar image finishes loading.
+  drawMapBackdrop(ctx, size, mapId, () => {
+    const last = lastRender.get(canvas);
+    if (last) renderThrow(canvas, last);
+  });
 
   const color = typeInfo(type).color;
 
