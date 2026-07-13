@@ -110,10 +110,18 @@ button.account-chip:hover {
   backdrop-filter: blur(2px);
 }
 
+.modal {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .modal-card {
   position: relative;
   z-index: 1;
   width: min(420px, 100%);
+  max-height: calc(100dvh - 2rem);
+  margin: auto;
+  overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: var(--radius);
@@ -2129,5 +2137,43 @@ input[type='color'] {
 
   .psa-choices {
     grid-template-columns: 1fr;
+  }
+
+  /* Prevent iOS from zooming the page when focusing an input (needs ≥16px). */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  /* Comfortable touch targets. */
+  .btn,
+  .tab,
+  .tool-tab,
+  select {
+    min-height: 44px;
+  }
+
+  /* Full-width primary actions read better on phones. */
+  .actions .btn {
+    width: 100%;
+  }
+
+  .users-table .user-row {
+    grid-template-columns: 1fr;
+  }
+
+  .review-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 420px) {
+  .pro-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .hero h1 {
+    font-size: 2.1rem;
   }
 }

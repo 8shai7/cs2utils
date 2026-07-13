@@ -58,27 +58,35 @@ export function initMagnifier({ source, stage, toggleBtn, zoomSelect }) {
     lctx.stroke();
   }
 
-  function onMove(e) {
+  function point(clientX, clientY) {
     if (!enabled) return;
     const rect = source.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
     if (x < 0 || y < 0 || x > rect.width || y > rect.height) {
       lens.classList.add('hidden');
       return;
     }
     last = { sx: x * (source.width / rect.width), sy: y * (source.height / rect.height) };
     const stageRect = stage.getBoundingClientRect();
-    lens.style.left = `${e.clientX - stageRect.left - LENS / 2}px`;
-    lens.style.top = `${e.clientY - stageRect.top - LENS / 2}px`;
+    lens.style.left = `${clientX - stageRect.left - LENS / 2}px`;
+    lens.style.top = `${clientY - stageRect.top - LENS / 2}px`;
     lens.classList.remove('hidden');
     draw();
   }
 
-  source.addEventListener('mousemove', onMove);
+  source.addEventListener('mousemove', (e) => point(e.clientX, e.clientY));
   source.addEventListener('mouseleave', () => {
     if (enabled) lens.classList.add('hidden');
   });
+  // Touch support: drag a finger across the preview to magnify on mobile.
+  const onTouch = (e) => {
+    if (!enabled || !e.touches[0]) return;
+    e.preventDefault();
+    point(e.touches[0].clientX, e.touches[0].clientY);
+  };
+  source.addEventListener('touchstart', onTouch, { passive: false });
+  source.addEventListener('touchmove', onTouch, { passive: false });
   toggleBtn.addEventListener('click', () => setEnabled(!enabled));
   if (zoomSelect) {
     zoomSelect.addEventListener('change', () => {
