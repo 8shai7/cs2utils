@@ -163,7 +163,7 @@ adminRoutes.post(
       ? [...new Set(req.body.ids.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0))]
       : [];
     if (!ids.length) throw new ApiError(400, 'Select at least one nade.');
-    if (ids.length > 100) throw new ApiError(400, 'Too many nades (max 100).');
+    if (ids.length > 1000) throw new ApiError(400, 'Too many nades (max 1000).');
 
     const placeholders = ids.map(() => '?').join(',');
     const [result] = await pool.query(
@@ -214,7 +214,7 @@ adminRoutes.post(
       ? [...new Set(req.body.ids.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0))]
       : [];
     if (!ids.length) throw new ApiError(400, 'Select at least one media item.');
-    if (ids.length > 100) throw new ApiError(400, 'Too many media items (max 100).');
+    if (ids.length > 1000) throw new ApiError(400, 'Too many media items (max 1000).');
 
     const placeholders = ids.map(() => '?').join(',');
     const [result] = await pool.query(

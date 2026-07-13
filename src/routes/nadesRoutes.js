@@ -266,7 +266,7 @@ nadesRoutes.post(
       ? req.body.nadeIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
       : [];
     if (!ids.length) throw new ApiError(400, 'Select at least one nade.');
-    if (ids.length > 80) throw new ApiError(400, 'Too many nades (max 80).');
+    if (ids.length > 30) throw new ApiError(400, 'Too many nades (max 30).');
 
     const placeholders = ids.map(() => '?').join(',');
     const [rows] = await pool.query(
@@ -309,7 +309,7 @@ nadesRoutes.post(
     try {
       res.json({
         pack: buildPracticePackFromNades(mapId, nades, {
-          loadName: `aimkit_${mapId}_browse_${ids[0]}`,
+          loadName: `aimkit_${mapId}_x${rows.length}_${ids[0]}`,
         }),
         source: 'nades',
       });

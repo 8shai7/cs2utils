@@ -13,9 +13,10 @@ import {
   detectMediaKind,
 } from './nades.js';
 import { renderThrow, canvasPointToNormalized } from './throwCanvas.js';
-import { tryInGame, downloadPracticePack, practicePackModalHtml } from './tryInGame.js';
+import { downloadPracticePack, openSteamPractice, practicePackModalHtml, readDownloadOptions } from './tryInGame.js';
 
 const CANVAS_SIZE = 360;
+const BROWSE_TRY_MAX = 30;
 
 let tool;
 let session = null;
@@ -26,6 +27,7 @@ let loading = false;
 
 let browseFilter = { map: '', type: '' };
 let browseData = [];
+let browseSelected = new Map(); // nadeId -> mapId
 let mineData = [];
 let reviewData = [];
 let usersData = [];
@@ -33,6 +35,7 @@ let usersData = [];
 let draft = newDraft();
 let guideImport = newGuideImport();
 let tryGamePack = null;
+let tryGameLineupCount = 1;
 
 function newDraft() {
   return {
@@ -176,6 +179,12 @@ function nadeCardHtml(nade, { showStatus = false, showTryInGame = false } = {}) 
 
   const tryBtn = showTryInGame
     ? `<div class="nade-card-actions">
+         <label class="browse-nade-check">
+           <input type="checkbox" class="browse-select" value="${nade.id}" data-map="${esc(nade.map)}" ${
+             browseSelected.has(nade.id) ? 'checked' : ''
+           } />
+           <span>Select</span>
+         </label>
          <button class="btn" type="button" data-try-nades="${nade.id}">Try in game</button>
        </div>`
     : '';
@@ -202,13 +211,17 @@ function nadeCardHtml(nade, { showStatus = false, showTryInGame = false } = {}) 
     </article>`;
 }
 
+function browseSelectedIds() {
+  return [...browseSelected.keys()];
+}
+
 function browseHtml() {
   const cards = browseData.length
     ? browseData.map((n) => nadeCardHtml(n, { showTryInGame: true })).join('')
     : `<p class="hint">No approved nades yet${
         session ? ' — be the first to add one!' : ' — log in and add the nades you found.'
       }</p>`;
-  const sameMap = browseFilter.map && browseData.length > 0;
+  const selectedCount = browseSelected.size;
   return `
     <div class="nades-filters">
       <label class="field">
@@ -219,16 +232,13 @@ function browseHtml() {
         <span>Type</span>
         <select id="filter-type"><option value="">All types</option>${optionList(NADE_TYPES, browseFilter.type)}</select>
       </label>
-      ${
-        sameMap
-          ? `<div class="field browse-try-field">
-               <span>&nbsp;</span>
-               <button class="btn primary" type="button" id="browse-try-map">Try ${esc(
-                 mapName(browseFilter.map),
-               )} in game (${browseData.length})</button>
-             </div>`
-          : ''
-      }
+    </div>
+    <div class="browse-select-bar">
+      <span class="hint">Select up to ${BROWSE_TRY_MAX} lineups (same map) to merge into one annotation file.</span>
+      <button class="btn ghost" type="button" id="browse-select-clear" ${selectedCount ? '' : 'disabled'}>Clear selection</button>
+      <button class="btn primary" type="button" id="browse-try-selected" ${selectedCount ? '' : 'disabled'}>
+        Try selected in game (${selectedCount}/${BROWSE_TRY_MAX})
+      </button>
     </div>
     <div class="nade-grid">${cards}</div>`;
 }
@@ -417,9 +427,11 @@ function reviewHtml() {
                    <input type="checkbox" class="review-nade-check" value="${n.id}" />
                    <span>Select</span>
                  </label>
+                 <div class="review-actions-btns">
+                   <button class="btn primary" data-approve-nade="${n.id}">Approve</button>
+                   <button class="btn ghost" data-reject-nade="${n.id}">Reject</button>
+                 </div>
                  <input type="text" class="review-note" data-nade="${n.id}" placeholder="Optional note to the author" />
-                 <button class="btn primary" data-approve-nade="${n.id}">Approve nade</button>
-                 <button class="btn ghost" data-reject-nade="${n.id}">Reject</button>
                </div>`
             : `<p class="hint">Nade already ${esc(n.status)} — reviewing added media only.</p>`;
         return `<div class="nade-mine">${nadeCardHtml(n, { showStatus: true })}${mediaReview}${nadeButtons}</div>`;
@@ -504,7 +516,7 @@ function render() {
       ${subnavHtml()}
       <div class="nades-body">${viewBodyHtml()}</div>
       <div id="nades-status" class="status ${statusMsg.kind}">${esc(statusMsg.text)}</div>
-      ${tryGamePack ? practicePackModalHtml(tryGamePack, { esc }) : ''}
+      ${tryGamePack ? practicePackModalHtml(tryGamePack, { esc, lineupCount: tryGameLineupCount }) : ''}
     </div>`;
   wire();
   drawCanvases();
@@ -560,14 +572,22 @@ function wire() {
   // Browse filters
   tool.querySelector('#filter-map')?.addEventListener('change', (e) => {
     browseFilter.map = e.target.value;
+    browseSelected = new Map();
     loadView('browse');
   });
   tool.querySelector('#filter-type')?.addEventListener('change', (e) => {
     browseFilter.type = e.target.value;
     loadView('browse');
   });
-  tool.querySelector('#browse-try-map')?.addEventListener('click', () => {
-    onTryNades(browseData.map((n) => n.id));
+  tool.querySelectorAll('.browse-select').forEach((c) =>
+    c.addEventListener('change', () => onBrowseSelectToggle(c)),
+  );
+  tool.querySelector('#browse-select-clear')?.addEventListener('click', () => {
+    browseSelected = new Map();
+    render();
+  });
+  tool.querySelector('#browse-try-selected')?.addEventListener('click', () => {
+    onTryNades(browseSelectedIds());
   });
   tool.querySelectorAll('[data-try-nades]').forEach((b) =>
     b.addEventListener('click', () => onTryNades([Number(b.dataset.tryNades)])),
@@ -637,15 +657,26 @@ function wire() {
   // Try-in-game modal
   tool.querySelector('[data-try-game-close]')?.addEventListener('click', () => {
     tryGamePack = null;
+    tryGameLineupCount = 1;
     render();
   });
   tool.querySelector('[data-try-game-download]')?.addEventListener('click', () => {
     if (!tryGamePack) return;
-    downloadPracticePack(tryGamePack);
+    const opts = readDownloadOptions(tool);
+    if (!opts.guide && !opts.cfg) {
+      const st = tool.querySelector('[data-try-game-status]');
+      if (st) st.textContent = 'Choose at least one file to download, or just Open CS2 if you already have them.';
+      return;
+    }
+    const downloaded = downloadPracticePack(tryGamePack, opts);
     const st = tool.querySelector('[data-try-game-status]');
-    if (st) st.textContent = 'Downloaded guide + CFG. Copy them into game/csgo (see steps), then click Download & open CS2.';
+    if (st) {
+      st.textContent = downloaded.length
+        ? `Downloaded ${downloaded.join(' + ')}. Copy into your CS2 folders, then Open CS2.`
+        : 'Nothing selected to download.';
+    }
   });
-  tool.querySelector('[data-try-game-go]')?.addEventListener('click', onTryGameGo);
+  tool.querySelector('[data-try-game-open]')?.addEventListener('click', onTryGameOpen);
 
   // My nades: add media / delete / try in game
   tool.querySelectorAll('[data-add-media]').forEach((b) =>
@@ -818,8 +849,9 @@ async function onGuideTryGame() {
     setStatus('Preparing CS2 practice pack…', '');
     const data = await api.nades.practicePackFromText({ text, map });
     tryGamePack = data.pack;
+    tryGameLineupCount = guideImport.parsed?.nades?.length || 1;
     render();
-    setStatus('Ready — install into CS2 and open a private practice server.', 'ok');
+    setStatus('Choose what to download (or skip if you already have the files), then Open CS2.', 'ok');
   } catch (err) {
     setStatus(err.message, 'error');
   }
@@ -830,38 +862,89 @@ async function onTryImport(importId) {
     setStatus('Preparing CS2 practice pack…', '');
     const data = await api.nades.practicePackFromImport(importId);
     tryGamePack = data.pack;
+    tryGameLineupCount = 1;
     render();
-    setStatus('Ready — install into CS2 and open a private practice server.', 'ok');
+    setStatus('Choose what to download (or skip if you already have the files), then Open CS2.', 'ok');
   } catch (err) {
     setStatus(err.message, 'error');
   }
 }
 
+function onBrowseSelectToggle(checkbox) {
+  const id = Number(checkbox.value);
+  const map = checkbox.dataset.map;
+  if (!Number.isFinite(id) || id <= 0) return;
+
+  if (!checkbox.checked) {
+    browseSelected.delete(id);
+    updateBrowseSelectBar();
+    return;
+  }
+
+  if (browseSelected.size >= BROWSE_TRY_MAX && !browseSelected.has(id)) {
+    checkbox.checked = false;
+    setStatus(`You can select at most ${BROWSE_TRY_MAX} lineups.`, 'error');
+    return;
+  }
+
+  for (const [, selectedMap] of browseSelected) {
+    if (selectedMap !== map) {
+      checkbox.checked = false;
+      setStatus('Selected lineups must be on the same map.', 'error');
+      return;
+    }
+  }
+
+  browseSelected.set(id, map);
+  updateBrowseSelectBar();
+}
+
+function updateBrowseSelectBar() {
+  const barBtn = tool.querySelector('#browse-try-selected');
+  const clearBtn = tool.querySelector('#browse-select-clear');
+  const n = browseSelected.size;
+  if (barBtn) {
+    barBtn.disabled = n === 0;
+    barBtn.textContent = `Try selected in game (${n}/${BROWSE_TRY_MAX})`;
+  }
+  if (clearBtn) clearBtn.disabled = n === 0;
+}
+
 async function onTryNades(nadeIds) {
-  const ids = (nadeIds || []).map(Number).filter((id) => Number.isFinite(id) && id > 0);
+  const ids = [...new Set((nadeIds || []).map(Number).filter((id) => Number.isFinite(id) && id > 0))];
   if (!ids.length) {
-    setStatus('No nades to open in CS2.', 'error');
+    setStatus('Select at least one lineup (max 30, same map).', 'error');
+    return;
+  }
+  if (ids.length > BROWSE_TRY_MAX) {
+    setStatus(`You can open at most ${BROWSE_TRY_MAX} lineups at once.`, 'error');
     return;
   }
   try {
     setStatus('Preparing CS2 practice pack…', '');
     const data = await api.nades.practicePackFromNades(ids);
     tryGamePack = data.pack;
+    tryGameLineupCount = ids.length;
     render();
-    setStatus('Ready — install into CS2 and open a private practice server.', 'ok');
+    setStatus(
+      ids.length > 1
+        ? `Merged ${ids.length} lineups into one annotation file. Download what you need, then Open CS2.`
+        : 'Choose what to download (or skip if you already have the files), then Open CS2.',
+      'ok',
+    );
   } catch (err) {
     setStatus(err.message, 'error');
   }
 }
 
-async function onTryGameGo() {
+function onTryGameOpen() {
   if (!tryGamePack) return;
   const st = tool.querySelector('[data-try-game-status]');
-  if (st) st.textContent = 'Working…';
   try {
-    const result = await tryInGame(tryGamePack);
-    if (st) st.textContent = result.message;
-    setStatus(result.message, 'ok');
+    openSteamPractice(tryGamePack);
+    const msg = `Opening CS2 private ${tryGamePack.deMap}… (make sure annotation_load ${tryGamePack.loadName} is installed).`;
+    if (st) st.textContent = msg;
+    setStatus(msg, 'ok');
   } catch (err) {
     if (st) st.textContent = err.message;
     setStatus(err.message, 'error');
