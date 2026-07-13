@@ -5,7 +5,7 @@ import {
   InvalidCrosshairShareCode,
   InvalidShareCode,
 } from 'csgo-sharecode';
-import { parseCommandsToCrosshair, formatCommands } from './convars.js';
+import { parseCommandsToCrosshair, formatCommands, DEFAULT_CROSSHAIR } from './convars.js';
 import { renderCrosshairPreview } from './preview.js';
 import {
   GAMES,
@@ -51,6 +51,7 @@ app.innerHTML = `
           <div class="tabs" role="tablist">
             <button class="tab active" data-tab="code-to-cmd" role="tab" aria-selected="true">Code → Commands</button>
             <button class="tab" data-tab="cmd-to-code" role="tab" aria-selected="false">Commands → Code</button>
+            <button class="tab" data-tab="visual" role="tab" aria-selected="false">Visual editor</button>
           </div>
 
           <div class="tab-panel active" data-panel="code-to-cmd">
@@ -90,6 +91,80 @@ app.innerHTML = `
               <button class="btn" id="copy-code">Copy code</button>
             </div>
             <p class="hint">Import via Settings → Game → Crosshair → Share or Import.</p>
+          </div>
+
+          <div class="tab-panel" data-panel="visual">
+            <div class="editor-grid">
+              <label class="field">
+                <span>Style</span>
+                <select id="ed-style">
+                  <option value="0">0 — Default</option>
+                  <option value="1">1 — Default static</option>
+                  <option value="2">2 — Classic</option>
+                  <option value="3">3 — Classic dynamic</option>
+                  <option value="4">4 — Classic static</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Color</span>
+                <select id="ed-color">
+                  <option value="0">White</option>
+                  <option value="1">Green</option>
+                  <option value="2">Yellow</option>
+                  <option value="3">Blue</option>
+                  <option value="4">Cyan</option>
+                  <option value="5">Custom (RGB)</option>
+                </select>
+              </label>
+            </div>
+
+            <label class="field" id="ed-custom-color-field">
+              <span>Custom color</span>
+              <input id="ed-custom-color" type="color" value="#32fa32" />
+            </label>
+
+            <label class="field range-field">
+              <span>Size <output id="ed-length-val"></output></span>
+              <input id="ed-length" type="range" min="0" max="15" step="0.5" />
+            </label>
+            <label class="field range-field">
+              <span>Thickness <output id="ed-thickness-val"></output></span>
+              <input id="ed-thickness" type="range" min="0" max="6" step="0.1" />
+            </label>
+            <label class="field range-field">
+              <span>Gap <output id="ed-gap-val"></output></span>
+              <input id="ed-gap" type="range" min="-10" max="10" step="0.5" />
+            </label>
+            <label class="field range-field">
+              <span>Outline thickness <output id="ed-outline-val"></output></span>
+              <input id="ed-outline" type="range" min="0" max="3" step="0.5" />
+            </label>
+            <label class="field range-field">
+              <span>Alpha <output id="ed-alpha-val"></output></span>
+              <input id="ed-alpha" type="range" min="0" max="255" step="5" />
+            </label>
+
+            <div class="editor-toggles">
+              <label class="toggle"><input id="ed-dot" type="checkbox" /> Center dot</label>
+              <label class="toggle"><input id="ed-tstyle" type="checkbox" /> T-style</label>
+              <label class="toggle"><input id="ed-outline-on" type="checkbox" /> Outline</label>
+              <label class="toggle"><input id="ed-alpha-on" type="checkbox" /> Use alpha</label>
+            </div>
+
+            <label class="field">
+              <span>Generated share code</span>
+              <input id="ed-sharecode" type="text" readonly spellcheck="false" />
+            </label>
+            <label class="field">
+              <span>Console commands</span>
+              <textarea id="ed-commands" rows="10" readonly spellcheck="false"></textarea>
+            </label>
+            <div class="actions">
+              <button class="btn" id="ed-copy-code">Copy code</button>
+              <button class="btn" id="ed-copy-commands">Copy commands</button>
+              <button class="btn ghost" id="ed-reset">Reset</button>
+            </div>
+            <p class="hint">Drag the sliders to design your crosshair — the preview, share code, and commands update live.</p>
           </div>
 
           <div id="crosshair-status" class="status" role="status" aria-live="polite"></div>
@@ -241,7 +316,12 @@ function updatePreview(crosshair) {
 
 /** @param {string} code */
 function normalizeShareCode(code) {
-  return code.trim().toUpperCase().replace(/\s+/g, '');
+  // Share code bodies are case-sensitive (Base57), so only strip whitespace and
+  // normalize the leading "CSGO" prefix — never change the case of the payload.
+  return code
+    .trim()
+    .replace(/\s+/g, '')
+    .replace(/^csgo/i, 'CSGO');
 }
 
 function decodeFromCode() {
@@ -461,6 +541,149 @@ document.querySelector('#load-example-cmd')?.addEventListener('click', () => {
   commandsInput.value = EXAMPLE_COMMANDS;
   encodeFromCommands();
 });
+
+// --- Visual crosshair editor ---
+const EDITOR_PRESET_COLORS = {
+  0: [255, 255, 255],
+  1: [50, 250, 50],
+  2: [255, 255, 0],
+  3: [50, 50, 250],
+  4: [50, 250, 250],
+};
+
+const editor = { ...DEFAULT_CROSSHAIR };
+
+const edStyle = /** @type {HTMLSelectElement} */ (document.querySelector('#ed-style'));
+const edColor = /** @type {HTMLSelectElement} */ (document.querySelector('#ed-color'));
+const edCustomColor = /** @type {HTMLInputElement} */ (document.querySelector('#ed-custom-color'));
+const edCustomColorField = document.querySelector('#ed-custom-color-field');
+const edLength = /** @type {HTMLInputElement} */ (document.querySelector('#ed-length'));
+const edThickness = /** @type {HTMLInputElement} */ (document.querySelector('#ed-thickness'));
+const edGap = /** @type {HTMLInputElement} */ (document.querySelector('#ed-gap'));
+const edOutline = /** @type {HTMLInputElement} */ (document.querySelector('#ed-outline'));
+const edAlpha = /** @type {HTMLInputElement} */ (document.querySelector('#ed-alpha'));
+const edDot = /** @type {HTMLInputElement} */ (document.querySelector('#ed-dot'));
+const edTStyle = /** @type {HTMLInputElement} */ (document.querySelector('#ed-tstyle'));
+const edOutlineOn = /** @type {HTMLInputElement} */ (document.querySelector('#ed-outline-on'));
+const edAlphaOn = /** @type {HTMLInputElement} */ (document.querySelector('#ed-alpha-on'));
+const edSharecode = /** @type {HTMLInputElement} */ (document.querySelector('#ed-sharecode'));
+const edCommands = /** @type {HTMLTextAreaElement} */ (document.querySelector('#ed-commands'));
+const edLengthVal = document.querySelector('#ed-length-val');
+const edThicknessVal = document.querySelector('#ed-thickness-val');
+const edGapVal = document.querySelector('#ed-gap-val');
+const edOutlineVal = document.querySelector('#ed-outline-val');
+const edAlphaVal = document.querySelector('#ed-alpha-val');
+
+/** @param {number} r @param {number} g @param {number} b */
+function rgbToHex(r, g, b) {
+  const to2 = (n) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
+  return `#${to2(r)}${to2(g)}${to2(b)}`;
+}
+
+/** @param {string} hex */
+function hexToRgb(hex) {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex.trim());
+  if (!m) return { r: editor.red, g: editor.green, b: editor.blue };
+  return { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) };
+}
+
+/** Push the current editor state onto every control (used on init / reset). */
+function applyStateToControls() {
+  edStyle.value = String(editor.style);
+  edColor.value = String(editor.color);
+  edCustomColor.value = rgbToHex(editor.red, editor.green, editor.blue);
+  edLength.value = String(editor.length);
+  edThickness.value = String(editor.thickness);
+  edGap.value = String(editor.gap);
+  edOutline.value = String(editor.outline);
+  edAlpha.value = String(editor.alpha);
+  edDot.checked = editor.centerDotEnabled;
+  edTStyle.checked = editor.tStyleEnabled;
+  edOutlineOn.checked = editor.outlineEnabled;
+  edAlphaOn.checked = editor.alphaEnabled;
+}
+
+/** Update the editor's own outputs (badges, code, commands) without touching the shared preview. */
+function renderEditorOutputs() {
+  edLengthVal.textContent = String(editor.length);
+  edThicknessVal.textContent = String(editor.thickness);
+  edGapVal.textContent = String(editor.gap);
+  edOutlineVal.textContent = String(editor.outline);
+  edAlphaVal.textContent = String(editor.alpha);
+
+  edCustomColorField?.classList.toggle('hidden', editor.color !== 5);
+  edOutline.disabled = !editor.outlineEnabled;
+  edAlpha.disabled = !editor.alphaEnabled;
+
+  try {
+    edSharecode.value = encodeCrosshair(editor);
+  } catch {
+    edSharecode.value = '';
+  }
+  edCommands.value = formatCommands(crosshairToConVars(editor));
+}
+
+/** Render the shared preview + the editor outputs. */
+function renderEditor() {
+  updatePreview(editor);
+  renderEditorOutputs();
+}
+
+/** Read every control into the editor state, then re-render. */
+function readEditorControls() {
+  editor.style = Number(edStyle.value);
+  editor.length = Number(edLength.value);
+  editor.thickness = Number(edThickness.value);
+  editor.gap = Number(edGap.value);
+  editor.outline = Number(edOutline.value);
+  editor.alpha = Number(edAlpha.value);
+  editor.centerDotEnabled = edDot.checked;
+  editor.tStyleEnabled = edTStyle.checked;
+  editor.outlineEnabled = edOutlineOn.checked;
+  editor.alphaEnabled = edAlphaOn.checked;
+  editor.color = Number(edColor.value);
+
+  if (editor.color === 5) {
+    const { r, g, b } = hexToRgb(edCustomColor.value);
+    editor.red = r;
+    editor.green = g;
+    editor.blue = b;
+  } else {
+    const [r, g, b] = EDITOR_PRESET_COLORS[editor.color] ?? EDITOR_PRESET_COLORS[1];
+    editor.red = r;
+    editor.green = g;
+    editor.blue = b;
+    edCustomColor.value = rgbToHex(r, g, b);
+  }
+
+  renderEditor();
+}
+
+[edStyle, edColor, edCustomColor, edLength, edThickness, edGap, edOutline, edAlpha, edDot, edTStyle, edOutlineOn, edAlphaOn].forEach(
+  (el) => {
+    el.addEventListener('input', readEditorControls);
+    el.addEventListener('change', readEditorControls);
+  }
+);
+
+document.querySelector('#ed-copy-code')?.addEventListener('click', () => {
+  copyText(crosshairStatus, edSharecode.value, 'share code');
+});
+document.querySelector('#ed-copy-commands')?.addEventListener('click', () => {
+  copyText(crosshairStatus, edCommands.value, 'commands');
+});
+document.querySelector('#ed-reset')?.addEventListener('click', () => {
+  Object.assign(editor, DEFAULT_CROSSHAIR);
+  applyStateToControls();
+  renderEditor();
+  setStatus(crosshairStatus, 'Crosshair reset to defaults.', 'ok');
+});
+
+// Re-render the shared preview from the editor whenever its tab is opened.
+document.querySelector('.converter-panel .tab[data-tab="visual"]')?.addEventListener('click', renderEditor);
+
+applyStateToControls();
+renderEditorOutputs();
 
 sensFromGame.innerHTML = gameOptionsHtml('cs2');
 sensToGame.innerHTML = gameOptionsHtml('valorant');
