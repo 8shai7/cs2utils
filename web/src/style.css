@@ -2430,9 +2430,18 @@ input[type='color'] {
 }
 
 .cmd-comment {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  font-size: 0.85rem;
+}
+
+.cmd-comment-body {
   display: grid;
   gap: 0.15rem;
-  font-size: 0.85rem;
+  min-width: 0;
+  flex: 1;
 }
 
 .cmd-comment strong {
