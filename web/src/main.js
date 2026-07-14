@@ -383,23 +383,25 @@ app.innerHTML = `
             <span class="sens-unit" id="psa-result-label">recommended sensitivity</span>
           </div>
           <dl id="psa-stats" class="preview-stats sens-stats"></dl>
-          <p class="sens-note">A 7-round binary search: test both values in your usual practice routine, pick the side that feels more controllable, and repeat until it converges on your ideal sensitivity.</p>
+          <p class="sens-note">A 7-round binary search starting from your <strong>pad 360°</strong> sensitivity — the in-game sens where moving across your whole playable mousepad area does exactly one full turn. Narrow it until it feels right.</p>
         </section>
 
         <section class="panel converter-panel">
           <details class="psa-instructions" open>
             <summary>How the PSA method works</summary>
             <ol class="psa-steps-list">
-              <li>Enter your current in-game sensitivity below and press <strong>Start PSA</strong>.</li>
-              <li>You'll get two options — a <strong>lower</strong> and a <strong>higher</strong> sensitivity. Set each one in-game and test it with the same routine (e.g. <code>aim_botz</code>, a deathmatch, or retakes).</li>
-              <li>Pick the side that felt <strong>more controllable</strong> — better first-shot accuracy and target tracking.</li>
+              <li>
+                Find your <strong>pad 360° sensitivity</strong>: in-game, adjust <code>sensitivity</code> until moving your mouse from one edge of your playable pad area to the other turns you exactly <strong>360°</strong>. Enter that value below and press <strong>Start PSA</strong>.
+              </li>
+              <li>Each round gives a <strong>lower</strong> and <strong>higher</strong> sensitivity. Set each one in-game and test with the same routine (e.g. <code>aim_botz</code>, deathmatch, or retakes).</li>
+              <li>Pick the side that felt <strong>more controllable</strong> — better first-shot accuracy and tracking.</li>
               <li>The range narrows around your choice. Repeat for all <strong>7 rounds</strong>.</li>
-              <li>After the final round you get your <strong>recommended sensitivity</strong>. Apply it via <em>Settings → Mouse</em> or the console: <code>sensitivity &lt;value&gt;</code>.</li>
+              <li>After the final round you get your <strong>recommended sensitivity</strong>. Apply it via <em>Settings → Mouse</em> or <code>sensitivity &lt;value&gt;</code>.</li>
             </ol>
-            <p class="hint">Tips: give each value equal test time, keep your DPI &amp; resolution the same throughout, and use the same map/routine every round for a fair comparison.</p>
+            <p class="hint">Tips: give each value equal test time, keep DPI &amp; resolution the same, and use the same map/routine every round. Your pad 360° is only the starting base — PSA will move away from it toward what feels best.</p>
           </details>
           <label class="field">
-            <span>Starting in-game sensitivity</span>
+            <span>Pad 360° sensitivity (full pad swipe = one turn)</span>
             <input id="psa-start" type="number" min="0" step="0.01" inputmode="decimal" value="1.00" />
           </label>
           <div class="actions">
@@ -750,7 +752,7 @@ const TOOL_DESCRIPTIONS = {
     'Convert a crosshair share code into console commands, build a code from commands, or design one visually with a live preview.',
   sensitivity:
     'Keep the same cm/360 aim feel across games — with custom yaw values and DPI changes handled for you.',
-  psa: 'Dial in your ideal sensitivity with a guided 7-round A/B test (Perfect Sensitivity Approximation).',
+  psa: 'Start from your pad 360° sens (full mousepad swipe = one turn), then narrow it with a guided 7-round A/B test.',
   nades:
     'Browse community grenade line-ups, or sign in to submit your own with a 2D throw guide, videos and photos.',
   commands:
@@ -1165,6 +1167,7 @@ document.querySelector('#copy-sens')?.addEventListener('click', () => {
 document.querySelector('#sens-cs2-val')?.addEventListener('click', loadCs2ValorantExample);
 
 // --- PSA (Perfect Sensitivity Approximation) calculator ---
+// Base = pad 360° in-game sensitivity (full swipe across playable pad = one turn).
 const psaStart = /** @type {HTMLInputElement} */ (document.querySelector('#psa-start'));
 const psaBegin = document.querySelector('#psa-begin');
 const psaRound = document.querySelector('#psa-round');
@@ -1205,7 +1208,7 @@ function renderPsa() {
     <div><dt>Range low</dt><dd>${formatSens(psaState.lo, 3)}</dd></div>
     <div><dt>Range high</dt><dd>${formatSens(psaState.hi, 3)}</dd></div>
     <div><dt>Spread</dt><dd>± ${formatSens((psaSpread(psaState) / 2) * 100, 1)}%</dd></div>
-    <div><dt>Base</dt><dd>${formatSens(psaState.base, 3)}</dd></div>
+    <div><dt>Pad 360° base</dt><dd>${formatSens(psaState.base, 3)}</dd></div>
   `;
 
   if (done) {
@@ -1239,7 +1242,7 @@ function renderPsa() {
 function startPsa() {
   const base = Number(psaStart.value);
   if (!Number.isFinite(base) || base <= 0) {
-    setStatus(psaStatus, 'Enter a valid starting sensitivity greater than 0.', 'error');
+    setStatus(psaStatus, 'Enter a valid pad 360° sensitivity greater than 0.', 'error');
     return;
   }
   psaState = createPsaState(base);
@@ -1263,7 +1266,7 @@ psaUndoBtn?.addEventListener('click', () => {
 psaResetBtn?.addEventListener('click', () => {
   psaState = null;
   renderPsa();
-  setStatus(psaStatus, 'Enter a starting sensitivity and press Start PSA.', '');
+  setStatus(psaStatus, 'Enter your pad 360° sensitivity and press Start PSA.', '');
 });
 
 previewResSelect.innerHTML = PREVIEW_RESOLUTIONS.map(
