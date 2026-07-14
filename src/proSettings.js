@@ -121,9 +121,13 @@ export async function getPros({ q = '', sort = 'name' } = {}) {
   if (sort === 'name') order = 'player ASC';
   else if (sort === 'edpi') order = 'edpi ASC, player ASC';
   else if (sort === 'edpi-desc') order = 'edpi DESC, player ASC';
-  const [rows] = await pool.query(`SELECT * FROM pro_settings ${where} ORDER BY ${order} LIMIT 400`, params);
+  // Full prosettings CS2 list is ~900+; keep a high safety cap, not a hard 400.
+  const limit = Math.min(Math.max(Number(process.env.PROS_LIST_LIMIT) || 2500, 1), 5000);
+  const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM pro_settings ${where}`, params);
+  const [rows] = await pool.query(`SELECT * FROM pro_settings ${where} ORDER BY ${order} LIMIT ${limit}`, params);
   return {
     pros: rows.map(serialize),
+    total: Number(total) || 0,
     source: (await getMeta('pros_source')) || 'seed',
     lastSync: Number((await getMeta('pros_last_sync')) || 0),
     lastError: (await getMeta('pros_last_error')) || '',

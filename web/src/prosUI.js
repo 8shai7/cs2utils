@@ -5,7 +5,7 @@ import { openAuth } from './headerAuth.js';
 
 let tool;
 let session = null;
-let data = { pros: [], source: 'seed', lastSync: 0 };
+let data = { pros: [], total: 0, source: 'seed', lastSync: 0 };
 let sort = 'featured';
 let query = '';
 let searchTimer = null;
@@ -109,7 +109,7 @@ function render() {
   tool.innerHTML = `
     <div class="pros-shell">
       <div class="cmd-status-bar">
-        <div><strong>Source:</strong> ${esc(data.source)} · <strong>${data.pros.length}</strong> players${
+        <div><strong>Source:</strong> ${esc(data.source)} · <strong>${data.total || data.pros.length}</strong> players${
           data.lastSync ? ` · synced ${esc(new Date(data.lastSync).toLocaleDateString())}` : ''
         }</div>
         ${adminBtn}
