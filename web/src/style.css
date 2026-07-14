@@ -448,34 +448,6 @@ button.account-chip:hover {
   display: none;
 }
 
-.preview-modes {
-  display: flex;
-  gap: 0.3rem;
-  padding: 0.3rem;
-  margin: 0 1.2rem 0.7rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--panel-border);
-  border-radius: 999px;
-}
-
-.pmode {
-  flex: 1;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-weight: 600;
-  font-size: 0.85rem;
-  padding: 0.4rem 0.6rem;
-  border-radius: 999px;
-  cursor: pointer;
-}
-
-.pmode.active {
-  background: linear-gradient(180deg, var(--accent-strong), var(--accent));
-  color: #111;
-}
-
 .preview-controls {
   display: flex;
   align-items: center;
