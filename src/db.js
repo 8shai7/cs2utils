@@ -11,8 +11,9 @@ export const pool = mysql.createPool({
   // Keep the pool small on serverless (many function instances share the DB's
   // max_connections); fail fast instead of hanging if the DB is unreachable.
   connectionLimit: Number(process.env.DB_POOL_LIMIT || (process.env.VERCEL ? 3 : 10)),
-  // Vercel ↔ remote MySQL can be slow on cold start; allow a longer default there.
-  connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT_MS || (process.env.VERCEL ? 20000 : 10000)),
+  // Keep well under typical Vercel function limits (hobby ~10s) so a dead DB
+  // still returns our JSON error instead of a platform timeout.
+  connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT_MS || (process.env.VERCEL ? 6000 : 10000)),
   charset: 'utf8mb4_unicode_ci',
   enableKeepAlive: true,
 });
@@ -300,6 +301,14 @@ const MIGRATIONS = [
 ];
 
 export async function initDb() {
+  // Misconfigured serverless: localhost is never reachable from Vercel.
+  if (process.env.VERCEL && /^(127\.0\.0\.1|localhost)$/i.test(String(config.db.host || ''))) {
+    const err = new Error(
+      `DB_HOST=${config.db.host} is not reachable from Vercel. Set DB_HOST to a public MySQL hostname (Hostinger Remote MySQL with allowed IPs, or a cloud DB).`,
+    );
+    err.code = 'ETIMEDOUT';
+    throw err;
+  }
   await withDbRetry(
     async () => {
       const conn = await pool.getConnection();
@@ -318,6 +327,7 @@ export async function initDb() {
         conn.release();
       }
     },
-    { attempts: Number(process.env.DB_INIT_RETRIES || 3), label: 'init' },
+    // 2 attempts × ~6s stays under common 10s serverless limits.
+    { attempts: Number(process.env.DB_INIT_RETRIES || (process.env.VERCEL ? 2 : 3)), label: 'init' },
   );
 }

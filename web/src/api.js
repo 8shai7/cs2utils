@@ -35,7 +35,8 @@ async function request(method, path, body, { auth = false } = {}) {
   if (body !== undefined && !(body instanceof FormData)) headers['Content-Type'] = 'application/json';
   if (auth) {
     const token = getToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
+    if (!token) throw new Error('Please log in first.');
+    headers.Authorization = `Bearer ${token}`;
   }
   let res;
   try {
@@ -57,7 +58,11 @@ async function request(method, path, body, { auth = false } = {}) {
     }
   }
   if (!res.ok) {
-    const err = new Error((data && data.error) || `Request failed (${res.status}).`);
+    const base = (data && data.error) || `Request failed (${res.status}).`;
+    const detail = data && typeof data.detail === 'string' ? data.detail.trim() : '';
+    const message =
+      detail && detail !== base ? `${base} ${detail}` : base;
+    const err = new Error(message);
     err.status = res.status;
     err.data = data;
     throw err;
