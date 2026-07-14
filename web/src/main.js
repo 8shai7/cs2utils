@@ -28,7 +28,7 @@ import { initHeaderAuth, openReset } from './headerAuth.js';
 import { openContactModal } from './contactModal.js';
 import { api, adoptToken } from './api.js';
 import { refresh as refreshSession } from './session.js';
-import { renderCrosshairPreview } from './preview.js';
+import { renderCrosshairPreview, crosshairPixelMetrics } from './preview.js';
 import { initMagnifier } from './magnifier.js';
 import {
   GAMES,
@@ -497,14 +497,13 @@ const PREVIEW_RESOLUTIONS = [
 
 let lastPreviewCrosshair = null;
 
-// Canvas pixels per crosshair unit.
-//  - 'ingame': res.h/1080 — real in-game pixel size shown 1:1 in the 280px box.
-//  - 'fullscreen': canvas.height/1080 — the box represents the whole screen, so
-//    the crosshair is a true fraction of it (resolution-independent).
-function previewScale() {
-  if (previewMode === 'fullscreen') return canvas.height / 1080;
+// Canvas represents either real on-screen pixels ("ingame") or the whole
+// monitor ("fullscreen"). Crosshair geometry uses CS2's Source HUD formula
+// (YRES against 480p), not a 1:1 mapping of cl_crosshairsize → CSS pixels.
+function previewResHeight() {
+  if (previewMode === 'fullscreen') return 1080;
   const res = PREVIEW_RESOLUTIONS.find((r) => r.id === previewResSelect?.value) || PREVIEW_RESOLUTIONS[0];
-  return res.h / 1080;
+  return res.h;
 }
 
 const magnifier = initMagnifier({
@@ -516,15 +515,13 @@ const magnifier = initMagnifier({
 
 function drawPreview(crosshair) {
   lastPreviewCrosshair = crosshair;
-  renderCrosshairPreview(canvas, crosshair, previewScale());
+  const resHeight = previewResHeight();
+  renderCrosshairPreview(canvas, crosshair, { resHeight });
   if (previewResScale) {
     if (crosshair) {
-      // Show the crosshair's real on-screen size for the selected resolution.
       const res = PREVIEW_RESOLUTIONS.find((r) => r.id === previewResSelect?.value) || PREVIEW_RESOLUTIONS[0];
-      const f = res.h / 1080;
-      const arms = Math.max(0, Math.round(crosshair.length * f));
-      const thick = Math.max(1, Math.round(crosshair.thickness * f));
-      previewResScale.textContent = `≈ ${arms}px arms · ${thick}px thick @ ${res.h}p`;
+      const stats = crosshairPixelMetrics(crosshair, res.h);
+      previewResScale.textContent = `≈ ${stats.length}px arms · ${stats.thickness}px thick @ ${res.h}p`;
     } else {
       previewResScale.textContent = '';
     }
