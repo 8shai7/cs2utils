@@ -145,11 +145,31 @@ function positionXY(node) {
   return { x: Number(p[0]), y: Number(p[1]), z: Number(p[2] ?? 0) };
 }
 
+function collectAnnotationNodes(root) {
+  const nodes = [];
+  for (const [key, value] of Object.entries(root)) {
+    if (/^MapAnnotationNode\d+$/i.test(key) && value && typeof value === 'object') {
+      nodes.push(value);
+    }
+  }
+  if (Array.isArray(root.Annotations)) {
+    for (const value of root.Annotations) {
+      if (value && typeof value === 'object') nodes.push(value);
+    }
+  }
+  if (Array.isArray(root.nodes)) {
+    for (const value of root.nodes) {
+      if (value && typeof value === 'object') nodes.push(value);
+    }
+  }
+  return nodes;
+}
+
 /**
- * Parse a CS2 annotation/map-guide text file into nade drafts ready for create.
- * @returns {{ map: string, mapName: string, nades: object[], skipped: number }}
+ * Parse lineups with original annotation node objects (for exact re-export).
+ * @returns {{ map: string, mapName: string, lineups: object[], skipped: number }}
  */
-export function parseMapGuide(text) {
+export function parseMapGuideLineups(text) {
   if (!text || !String(text).trim()) {
     throw new Error('Paste or upload a CS2 map guide (.txt) file.');
   }
@@ -170,44 +190,23 @@ export function parseMapGuide(text) {
     );
   }
 
-  /** Collect MapAnnotationNode* entries (and tolerate an Annotations array). */
-  const nodes = [];
-  for (const [key, value] of Object.entries(root)) {
-    if (/^MapAnnotationNode\d+$/i.test(key) && value && typeof value === 'object') {
-      nodes.push(value);
-    }
-  }
-  if (Array.isArray(root.Annotations)) {
-    for (const value of root.Annotations) {
-      if (value && typeof value === 'object') nodes.push(value);
-    }
-  }
-  if (Array.isArray(root.nodes)) {
-    for (const value of root.nodes) {
-      if (value && typeof value === 'object') nodes.push(value);
-    }
-  }
-
-  const byId = new Map();
-  for (const node of nodes) {
-    if (node.Id) byId.set(String(node.Id), node);
-  }
-
+  const nodes = collectAnnotationNodes(root);
   const mains = nodes.filter((n) => n.Type === 'grenade' && (n.SubType === 'main' || !n.SubType));
   const childrenOf = (masterId) =>
     nodes.filter((n) => n.Type === 'grenade' && String(n.MasterNodeId || '') === String(masterId));
 
-  const nades = [];
+  const lineups = [];
   let skipped = 0;
 
   for (const main of mains) {
-    if (nades.length >= MAX_IMPORT) {
+    if (lineups.length >= MAX_IMPORT) {
       skipped += 1;
       continue;
     }
     const kids = childrenOf(main.Id);
     const dest = kids.find((n) => n.SubType === 'destination') || null;
     const aim = kids.find((n) => n.SubType === 'aim_target') || null;
+    const extras = kids.filter((n) => n !== dest && n !== aim);
 
     const startWorld = positionXY(main);
     const endWorld = positionXY(dest) || positionXY(aim);
@@ -227,23 +226,26 @@ export function parseMapGuide(text) {
       textOf(main.Title) ||
       textOf(aim?.Title) ||
       textOf(dest?.Title) ||
-      `Imported lineup ${nades.length + 1}`;
+      `Imported lineup ${lineups.length + 1}`;
     const descParts = [textOf(main.Desc), textOf(aim?.Desc)].filter(Boolean);
-    const description = descParts.join('\n');
 
-    nades.push({
+    lineups.push({
       map,
       type: mapGrenadeType(main.GrenadeType),
       technique: techniqueFromNode(main),
       title: title.slice(0, 160),
-      description: description.slice(0, 4000),
+      description: descParts.join('\n').slice(0, 4000),
       start,
       end,
-      sourceNodeId: main.Id || null,
+      startWorld,
+      endWorld,
+      aimWorld: positionXY(aim),
+      sourceNodeId: main.Id ? String(main.Id) : null,
+      nodes: [main, aim, dest, ...extras].filter(Boolean),
     });
   }
 
-  if (!nades.length) {
+  if (!lineups.length) {
     throw new Error(
       mains.length
         ? 'Found grenade nodes but none had usable throw/landing positions.'
@@ -251,7 +253,29 @@ export function parseMapGuide(text) {
     );
   }
 
-  return { map, mapName: String(mapName), nades, skipped, totalNodes: nodes.length };
+  return { map, mapName: String(mapName), lineups, skipped, totalNodes: nodes.length };
+}
+
+/**
+ * Parse a CS2 annotation/map-guide text file into nade drafts ready for create.
+ * @returns {{ map: string, mapName: string, nades: object[], skipped: number }}
+ */
+export function parseMapGuide(text) {
+  const { map, mapName, lineups, skipped, totalNodes } = parseMapGuideLineups(text);
+  const nades = lineups.map((l) => ({
+    map: l.map,
+    type: l.type,
+    technique: l.technique,
+    title: l.title,
+    description: l.description,
+    start: l.start,
+    end: l.end,
+    startWorld: l.startWorld,
+    endWorld: l.endWorld,
+    aimWorld: l.aimWorld,
+    sourceNodeId: l.sourceNodeId,
+  }));
+  return { map, mapName, nades, skipped, totalNodes };
 }
 
 export { MAX_IMPORT };

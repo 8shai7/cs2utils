@@ -243,8 +243,11 @@ nadesRoutes.post(
       const description = String(draft.description || '').trim() || null;
 
       const [result] = await pool.query(
-        `INSERT INTO nades (author_id, map, type, side, technique, title, description, start_x, start_y, end_x, end_y, status, guide_import_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+        `INSERT INTO nades (
+           author_id, map, type, side, technique, title, description,
+           start_x, start_y, end_x, end_y, status, guide_import_id, guide_node_id,
+           start_wx, start_wy, start_wz, end_wx, end_wy, end_wz, aim_wx, aim_wy, aim_wz
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           req.user.id,
           draft.map,
@@ -258,6 +261,16 @@ nadesRoutes.post(
           clamp01(draft.end.x),
           clamp01(draft.end.y),
           guideImportId,
+          draft.sourceNodeId ? String(draft.sourceNodeId).slice(0, 64) : null,
+          draft.startWorld?.x ?? null,
+          draft.startWorld?.y ?? null,
+          draft.startWorld?.z ?? null,
+          draft.endWorld?.x ?? null,
+          draft.endWorld?.y ?? null,
+          draft.endWorld?.z ?? null,
+          draft.aimWorld?.x ?? null,
+          draft.aimWorld?.y ?? null,
+          draft.aimWorld?.z ?? null,
         ],
       );
       created.push(result.insertId);
@@ -359,8 +372,21 @@ nadesRoutes.post(
       throw new ApiError(400, 'All nades must be on the same map to open together in CS2.');
     }
 
-    // Always rebuild from the selected nades only — do not reuse the original
-    // map-guide import text, which would include every lineup from that guide.
+    // Prefer exact annotation nodes from the original import(s) so in-game
+    // markers keep true world XYZ (radar round-trips lose height + precision).
+    const importIds = [
+      ...new Set(rows.map((r) => r.guide_import_id).filter((id) => id != null)),
+    ];
+    const guidesByImportId = new Map();
+    if (importIds.length) {
+      const ph = importIds.map(() => '?').join(',');
+      const [guides] = await pool.query(
+        `SELECT id, guide_text FROM map_guide_imports WHERE id IN (${ph})`,
+        importIds,
+      );
+      for (const g of guides) guidesByImportId.set(Number(g.id), g.guide_text);
+    }
+
     const nades = rows.map((r) => ({
       title: r.title,
       description: r.description || '',
@@ -368,11 +394,22 @@ nadesRoutes.post(
       technique: r.technique,
       start: { x: r.start_x, y: r.start_y },
       end: { x: r.end_x, y: r.end_y },
+      guideImportId: r.guide_import_id || null,
+      guideNodeId: r.guide_node_id || null,
+      startWorld:
+        r.start_wx != null
+          ? { x: r.start_wx, y: r.start_wy, z: r.start_wz }
+          : null,
+      endWorld:
+        r.end_wx != null ? { x: r.end_wx, y: r.end_wy, z: r.end_wz } : null,
+      aimWorld:
+        r.aim_wx != null ? { x: r.aim_wx, y: r.aim_wy, z: r.aim_wz } : null,
     }));
     try {
       res.json({
         pack: buildPracticePackFromNades(mapId, nades, {
           loadName: `aimkit_${mapId}_x${rows.length}_${ids[0]}`,
+          guidesByImportId,
         }),
         source: 'nades',
         count: nades.length,

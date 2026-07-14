@@ -1,6 +1,7 @@
 // Helpers for "Try in game": practice CFG + Steam launch URL for a CS2 map guide.
 
 import { radarToWorld } from './mapRadar.js';
+import { parseMapGuideLineups } from './parseMapGuide.js';
 import { randomUUID } from 'node:crypto';
 
 const DE_MAP = {
@@ -109,9 +110,168 @@ function mapGrenadeTypeOut(type) {
   return 'smoke';
 }
 
+function normTitle(s) {
+  return String(s || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+function fmtWorldNum(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return '0.0';
+  if (Number.isInteger(v)) return `${v}.0`;
+  return String(Number(v.toFixed(6)));
+}
+
+function serializeKv3Value(value, indent) {
+  const pad = '\t'.repeat(indent);
+  if (value === null || value === undefined) return 'null';
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  if (typeof value === 'number') return fmtWorldNum(value);
+  if (typeof value === 'string') return `"${kv3Escape(value)}"`;
+  if (Array.isArray(value)) {
+    return `[ ${value.map((v) => serializeKv3Value(v, indent)).join(', ')} ]`;
+  }
+  if (typeof value === 'object') {
+    const keys = Object.keys(value);
+    if (!keys.length) return `{\n${pad}}`;
+    const body = keys
+      .map((k) => `${pad}\t${k} = ${serializeKv3Value(value[k], indent + 1)}`)
+      .join('\n');
+    return `{\n${body}\n${pad}}`;
+  }
+  return `"${kv3Escape(String(value))}"`;
+}
+
+/** Write a guide file from exact CS2 annotation node objects (preserves world XYZ). */
+export function buildGuideTextFromNodes(mapId, nodeGroups) {
+  const de = deMapName(mapId);
+  if (!de) throw new Error('Unknown map.');
+  const groups = Array.isArray(nodeGroups) ? nodeGroups : [];
+  const lines = [
+    '<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->',
+    '{',
+    `\tMapName = "${de}"`,
+    '\tScreenText =',
+    '\t{',
+    '\t}',
+  ];
+  let nodeIdx = 0;
+  for (const nodes of groups) {
+    for (const node of nodes || []) {
+      if (!node || typeof node !== 'object') continue;
+      lines.push(`\tMapAnnotationNode${nodeIdx++} = ${serializeKv3Value(node, 1)}`);
+    }
+  }
+  if (nodeIdx === 0) throw new Error('No annotation nodes to open in CS2.');
+  lines.push('}');
+  return `${lines.join('\n')}\n`;
+}
+
 /**
- * Rebuild a CS2 annotation KV3 file from AimKit nade drafts (radar 0..1 → world).
- * Approximate (Z lost) but enough for Try in game markers.
+ * Match selected nades to lineups inside an original guide and return their node groups.
+ * Matching prefers guide_node_id / sourceNodeId, then title+type, then title.
+ */
+export function matchNadesToGuideLineups(guideText, nades) {
+  const { lineups } = parseMapGuideLineups(guideText);
+  const used = new Set();
+  const matched = [];
+  const unmatched = [];
+
+  for (const nade of nades) {
+    const nodeId = nade.guideNodeId || nade.sourceNodeId || nade.guide_node_id || null;
+    let hit = null;
+    if (nodeId) {
+      hit = lineups.find((l) => l.sourceNodeId && String(l.sourceNodeId) === String(nodeId) && !used.has(l.sourceNodeId));
+    }
+    if (!hit) {
+      const title = normTitle(nade.title);
+      const type = String(nade.type || '').toLowerCase();
+      const byTitle = lineups.filter((l) => !used.has(l.sourceNodeId) && normTitle(l.title) === title);
+      hit = byTitle.find((l) => l.type === type) || byTitle[0] || null;
+    }
+    if (hit) {
+      used.add(hit.sourceNodeId);
+      matched.push(hit);
+    } else {
+      unmatched.push(nade);
+    }
+  }
+  return { matched, unmatched };
+}
+
+/**
+ * Build guide text for selected nades, preferring exact nodes from original imports.
+ * @param {string} mapId
+ * @param {object[]} nades selected nade drafts
+ * @param {Map<number,string>|Record<number,string>} [guidesByImportId] import id → guide_text
+ */
+export function buildGuideTextForSelectedNades(mapId, nades, guidesByImportId = new Map()) {
+  const guideMap =
+    guidesByImportId instanceof Map ? guidesByImportId : new Map(Object.entries(guidesByImportId).map(([k, v]) => [Number(k), v]));
+
+  const exactGroups = [];
+  const synthesized = [];
+
+  // Group nades that share an import so we can match within each guide once.
+  const byImport = new Map();
+  for (const nade of nades) {
+    const importId = nade.guideImportId || nade.guide_import_id || null;
+    if (importId && guideMap.has(Number(importId))) {
+      if (!byImport.has(Number(importId))) byImport.set(Number(importId), []);
+      byImport.get(Number(importId)).push(nade);
+    } else if (nade.startWorld || nade.endWorld) {
+      synthesized.push(nade);
+    } else {
+      synthesized.push(nade);
+    }
+  }
+
+  for (const [importId, group] of byImport) {
+    try {
+      const { matched, unmatched } = matchNadesToGuideLineups(guideMap.get(importId), group);
+      for (const hit of matched) exactGroups.push(hit.nodes);
+      synthesized.push(...unmatched);
+    } catch {
+      synthesized.push(...group);
+    }
+  }
+
+  if (exactGroups.length && !synthesized.length) {
+    return buildGuideTextFromNodes(mapId, exactGroups);
+  }
+
+  // Merge exact nodes + synthesized lineups into one file.
+  if (exactGroups.length) {
+    const exactText = buildGuideTextFromNodes(mapId, exactGroups);
+    if (!synthesized.length) return exactText;
+    // Append synthesized by parsing isn't needed — rebuild all via world when mixed.
+    // Prefer keeping exact nodes; append synthesized as new nodes.
+    const synthText = buildGuideTextFromNades(mapId, synthesized);
+    return mergeGuideTexts(mapId, [exactText, synthText]);
+  }
+
+  return buildGuideTextFromNades(mapId, synthesized.length ? synthesized : nades);
+}
+
+function mergeGuideTexts(mapId, texts) {
+  const allNodes = [];
+  for (const text of texts) {
+    try {
+      const { lineups } = parseMapGuideLineups(text);
+      for (const l of lineups) allNodes.push(l.nodes);
+    } catch {
+      // ignore parse failures of intermediate text
+    }
+  }
+  if (!allNodes.length) throw new Error('Could not build practice annotation file.');
+  return buildGuideTextFromNodes(mapId, allNodes);
+}
+
+/**
+ * Rebuild a CS2 annotation KV3 file from AimKit nade drafts.
+ * Prefers stored world XYZ (from the original guide); falls back to radar→world.
  */
 export function buildGuideTextFromNades(mapId, nades) {
   const de = deMapName(mapId);
@@ -130,9 +290,26 @@ export function buildGuideTextFromNades(mapId, nades) {
 
   let nodeIdx = 0;
   for (const nade of list) {
-    if (!nade?.start || !nade?.end) continue;
-    const start = radarToWorld(mapId, nade.start.x, nade.start.y, 0);
-    const end = radarToWorld(mapId, nade.end.x, nade.end.y, 0);
+    const start =
+      nade.startWorld && Number.isFinite(nade.startWorld.x)
+        ? {
+            x: Number(nade.startWorld.x),
+            y: Number(nade.startWorld.y),
+            z: Number(nade.startWorld.z) || 0,
+          }
+        : nade.start
+          ? radarToWorld(mapId, nade.start.x, nade.start.y, nade.start.z || 0)
+          : null;
+    const end =
+      nade.endWorld && Number.isFinite(nade.endWorld.x)
+        ? {
+            x: Number(nade.endWorld.x),
+            y: Number(nade.endWorld.y),
+            z: Number(nade.endWorld.z) || 0,
+          }
+        : nade.end
+          ? radarToWorld(mapId, nade.end.x, nade.end.y, nade.end.z || 0)
+          : null;
     if (!start || !end) continue;
 
     const mainId = randomUUID();
@@ -155,7 +332,7 @@ export function buildGuideTextFromNades(mapId, nades) {
       'Type = "grenade"',
       `Id = "${mainId}"`,
       'SubType = "main"',
-      `Position = [ ${start.x.toFixed(6)}, ${start.y.toFixed(6)}, ${start.z.toFixed(6)} ]`,
+      `Position = [ ${fmtWorldNum(start.x)}, ${fmtWorldNum(start.y)}, ${fmtWorldNum(start.z)} ]`,
       'Angles = [ 0.0, 0.0, 0.0 ]',
       'VisiblePfx = true',
       'TextFacePlayer = true',
@@ -177,17 +354,24 @@ export function buildGuideTextFromNades(mapId, nades) {
       `GrenadeType = "${gType}"`,
     ]);
 
-    const aim = {
-      x: start.x + (end.x - start.x) * 0.15,
-      y: start.y + (end.y - start.y) * 0.15,
-      z: start.z + 80,
-    };
+    const aim =
+      nade.aimWorld && Number.isFinite(nade.aimWorld.x)
+        ? {
+            x: Number(nade.aimWorld.x),
+            y: Number(nade.aimWorld.y),
+            z: Number(nade.aimWorld.z) || 0,
+          }
+        : {
+            x: start.x + (end.x - start.x) * 0.15,
+            y: start.y + (end.y - start.y) * 0.15,
+            z: start.z + 80,
+          };
     emitNode(`MapAnnotationNode${nodeIdx++}`, [
       'Enabled = true',
       'Type = "grenade"',
       `Id = "${aimId}"`,
       'SubType = "aim_target"',
-      `Position = [ ${aim.x.toFixed(6)}, ${aim.y.toFixed(6)}, ${aim.z.toFixed(6)} ]`,
+      `Position = [ ${fmtWorldNum(aim.x)}, ${fmtWorldNum(aim.y)}, ${fmtWorldNum(aim.z)} ]`,
       'Angles = [ 0.0, 0.0, 0.0 ]',
       'VisiblePfx = true',
       'TextFacePlayer = false',
@@ -213,7 +397,7 @@ export function buildGuideTextFromNades(mapId, nades) {
       'Type = "grenade"',
       `Id = "${destId}"`,
       'SubType = "destination"',
-      `Position = [ ${end.x.toFixed(6)}, ${end.y.toFixed(6)}, ${end.z.toFixed(6)} ]`,
+      `Position = [ ${fmtWorldNum(end.x)}, ${fmtWorldNum(end.y)}, ${fmtWorldNum(end.z)} ]`,
       'Angles = [ 0.0, 0.0, 0.0 ]',
       'VisiblePfx = true',
       'TextFacePlayer = false',
@@ -272,8 +456,8 @@ export function buildPracticePack({ mapId, guideText, importId = null, loadName:
   };
 }
 
-export function buildPracticePackFromNades(mapId, nades, { loadName } = {}) {
-  const guideText = buildGuideTextFromNades(mapId, nades);
+export function buildPracticePackFromNades(mapId, nades, { loadName, guidesByImportId } = {}) {
+  const guideText = buildGuideTextForSelectedNades(mapId, nades, guidesByImportId || new Map());
   return buildPracticePack({
     mapId,
     guideText,
