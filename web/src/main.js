@@ -184,6 +184,14 @@ app.innerHTML = `
           </div>
 
           <div class="tab-panel" data-panel="visual">
+            <label class="field">
+              <span>Share code</span>
+              <input id="ed-sharecode" type="text" spellcheck="false" placeholder="CSGO-UseJt-3oTvn-47wPX-hEyER-WZfiK" autocomplete="off" />
+            </label>
+            <div class="actions">
+              <button class="btn primary" type="button" id="ed-apply-code">Load code</button>
+            </div>
+
             <div class="editor-grid">
               <label class="field">
                 <span>Style</span>
@@ -263,19 +271,16 @@ app.innerHTML = `
             </div>
 
             <label class="field">
-              <span>Generated share code</span>
-              <input id="ed-sharecode" type="text" readonly spellcheck="false" />
-            </label>
-            <label class="field">
               <span>Console commands</span>
-              <textarea id="ed-commands" rows="10" readonly spellcheck="false"></textarea>
+              <textarea id="ed-commands" rows="10" spellcheck="false" placeholder="cl_crosshairstyle 4;&#10;cl_crosshairsize 3;&#10;..."></textarea>
             </label>
             <div class="actions">
-              <button class="btn" id="ed-copy-code">Copy code</button>
-              <button class="btn" id="ed-copy-commands">Copy commands</button>
-              <button class="btn ghost" id="ed-reset">Reset</button>
+              <button class="btn primary" type="button" id="ed-apply-commands">Apply commands</button>
+              <button class="btn" type="button" id="ed-copy-code">Copy code</button>
+              <button class="btn" type="button" id="ed-copy-commands">Copy commands</button>
+              <button class="btn ghost" type="button" id="ed-reset">Reset</button>
             </div>
-            <p class="hint">Drag the sliders to design your crosshair — the preview, share code, and commands update live.</p>
+            <p class="hint">Paste a share code or edit commands, then tweak with the sliders — preview updates live.</p>
           </div>
 
           <div id="crosshair-status" class="status" role="status" aria-live="polite"></div>
@@ -971,17 +976,62 @@ function renderEditorOutputs() {
   edAlphaNum.disabled = alphaOff;
 
   try {
-    edSharecode.value = encodeCrosshair(editor);
+    setControlValue(edSharecode, encodeCrosshair(editor));
   } catch {
-    edSharecode.value = '';
+    setControlValue(edSharecode, '');
   }
-  edCommands.value = formatCommands(crosshairToConVars(editor));
+  setControlValue(edCommands, formatCommands(crosshairToConVars(editor)));
 }
 
 /** Render the shared preview + the editor outputs. */
 function renderEditor() {
   updatePreview(editor);
   renderEditorOutputs();
+}
+
+/** Load a decoded/parsed crosshair into the visual editor. */
+function loadCrosshairIntoEditor(crosshair, okMessage) {
+  Object.assign(editor, DEFAULT_CROSSHAIR, crosshair);
+  applyStateToControls();
+  renderEditor();
+  if (okMessage) setStatus(crosshairStatus, okMessage, 'ok');
+}
+
+function applyEditorShareCode() {
+  const raw = edSharecode.value.trim();
+  if (!raw) {
+    setStatus(crosshairStatus, 'Paste a crosshair share code first.', 'error');
+    return;
+  }
+  const code = normalizeShareCode(raw);
+  if (!code) {
+    setStatus(crosshairStatus, 'Invalid format. Expected CSGO-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx', 'error');
+    return;
+  }
+  try {
+    const crosshair = decodeCrosshairShareCode(code);
+    loadCrosshairIntoEditor(crosshair, 'Loaded share code into the editor.');
+  } catch (err) {
+    if (err instanceof InvalidCrosshairShareCode || err instanceof InvalidShareCode) {
+      setStatus(crosshairStatus, 'That share code is not a valid crosshair code.', 'error');
+    } else {
+      setStatus(crosshairStatus, err instanceof Error ? err.message : 'Failed to decode share code.', 'error');
+    }
+  }
+}
+
+function applyEditorCommands() {
+  const text = edCommands.value.trim();
+  if (!text) {
+    setStatus(crosshairStatus, 'Paste crosshair console commands first.', 'error');
+    return;
+  }
+  try {
+    const crosshair = parseCommandsToCrosshair(text);
+    loadCrosshairIntoEditor(crosshair, 'Applied commands to the editor.');
+  } catch (err) {
+    setStatus(crosshairStatus, err instanceof Error ? err.message : 'Failed to parse commands.', 'error');
+  }
 }
 
 /** Style + checkboxes → editor state. */
@@ -1070,6 +1120,15 @@ RGB_FIELDS.forEach((f) => {
   f.slider.addEventListener('input', onRgbSlider);
   f.num.addEventListener('input', onRgbNum);
   f.num.addEventListener('change', onRgbNum);
+});
+
+document.querySelector('#ed-apply-code')?.addEventListener('click', applyEditorShareCode);
+document.querySelector('#ed-apply-commands')?.addEventListener('click', applyEditorCommands);
+edSharecode?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    applyEditorShareCode();
+  }
 });
 
 document.querySelector('#ed-copy-code')?.addEventListener('click', () => {
