@@ -59,11 +59,34 @@ export function isAdminRole(role) {
   return role === 'admin' || role === 'owner';
 }
 
+/** Read a Bearer token from Authorization or X-AimKit-Token (Vercel-safe fallback). */
+export function readBearerToken(req) {
+  const candidates = [
+    req.headers.authorization,
+    req.headers['x-aimkit-token'],
+    req.headers['x-access-token'],
+  ];
+  for (const raw of candidates) {
+    if (!raw || typeof raw !== 'string') continue;
+    const v = raw.trim();
+    if (!v) continue;
+    if (v.toLowerCase().startsWith('bearer ')) {
+      const t = v.slice(7).trim();
+      if (t) return t;
+      continue;
+    }
+    // Raw JWT in a custom header.
+    if (v.length > 20) return v;
+  }
+  return null;
+}
+
 /** Express middleware: require a valid bearer token; attaches req.user. */
 export function requireAuth(req, res, next) {
-  const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-  if (!token) return res.status(401).json({ error: 'Authentication required.' });
+  // CORS preflight never carries Authorization; let cors middleware answer it.
+  if (req.method === 'OPTIONS') return next();
+  const token = readBearerToken(req);
+  if (!token) return res.status(401).json({ error: 'Authentication required. Please log in and try again.' });
   try {
     req.user = jwt.verify(token, config.jwtSecret);
     next();
@@ -74,8 +97,8 @@ export function requireAuth(req, res, next) {
 
 /** Optional auth: attaches req.user if a valid token is present, else continues. */
 export function optionalAuth(req, _res, next) {
-  const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (req.method === 'OPTIONS') return next();
+  const token = readBearerToken(req);
   if (token) {
     try {
       req.user = jwt.verify(token, config.jwtSecret);

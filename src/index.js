@@ -23,6 +23,10 @@ const app = express();
 app.use(
   cors({
     origin: config.corsOrigin === '*' ? true : config.corsOrigin.split(',').map((s) => s.trim()),
+    // Explicit so cross-origin admin calls from aimkit.net → Vercel always
+    // advertise Authorization (and our X-AimKit-Token fallback) as allowed.
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-AimKit-Token', 'X-Access-Token'],
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
   }),
 );
 app.use(express.json({ limit: '1mb' }));

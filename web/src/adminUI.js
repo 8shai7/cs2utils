@@ -439,7 +439,12 @@ function wire() {
       await fn();
       if (msg) setStatus(msg, 'ok');
     } catch (err) {
-      setStatus(err.message, 'error');
+      if (err.status === 401) {
+        setStatus('Please log in as an admin and try again.', 'error');
+        openAuth('login');
+      } else {
+        setStatus(err.message, 'error');
+      }
     }
   };
   const reload = async () => {
@@ -560,7 +565,10 @@ function wire() {
     act(async () => { const r = await api.admin.checkCommandsCs2(); setStatus(`CS2 build: ${r.build || 'unknown'}${r.changed ? ' (changed → re-synced)' : ''}.`, 'ok'); }),
   );
   tool.querySelector('#sync-pros')?.addEventListener('click', () =>
-    act(async () => { const r = await api.admin.syncPros(); setStatus(r.synced ? `Synced ${r.count} pros from ${r.source}.` : `Sync failed: ${r.reason}.`, r.synced ? 'ok' : 'error'); }),
+    act(async () => {
+      const r = await api.admin.syncPros();
+      setStatus(r.synced ? `Synced ${r.count} pros from ${r.source}.` : `Sync failed: ${r.reason}.`, r.synced ? 'ok' : 'error');
+    }),
   );
   tool.querySelector('#import-commands')?.addEventListener('click', () =>
     openImportModal({

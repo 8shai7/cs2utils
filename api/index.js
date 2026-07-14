@@ -18,8 +18,8 @@ function setCors(req, res) {
       res.setHeader('Vary', 'Origin');
     }
   }
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-AimKit-Token, X-Access-Token');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
 }
 
 function initFailureDetail(error) {

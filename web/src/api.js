@@ -36,7 +36,10 @@ async function request(method, path, body, { auth = false } = {}) {
   if (auth) {
     const token = getToken();
     if (!token) throw new Error('Please log in first.');
+    // Send both standard Authorization and a custom fallback — some hosts have
+    // been observed to drop Authorization on certain routes/redirects.
     headers.Authorization = `Bearer ${token}`;
+    headers['X-AimKit-Token'] = `Bearer ${token}`;
   }
   let res;
   try {
