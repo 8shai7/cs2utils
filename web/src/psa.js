@@ -36,13 +36,19 @@ export function createPsaState(base) {
 
 /**
  * The two values to test this round plus the current midpoint estimate.
+ *
+ * Uses the quarter-points of the live range (not the endpoints). Presenting
+ * lo/hi directly made the chosen side stay identical every round — e.g. always
+ * picking "lower" kept showing the same lower number.
+ *
  * @param {PsaState} state
  */
 export function psaCandidates(state) {
+  const mid = (state.lo + state.hi) / 2;
   return {
-    lower: state.lo,
-    higher: state.hi,
-    mid: (state.lo + state.hi) / 2,
+    lower: (state.lo + mid) / 2,
+    higher: (mid + state.hi) / 2,
+    mid,
   };
 }
 
@@ -81,7 +87,8 @@ export function psaSpread(state) {
 export function psaChoose(state, side) {
   if (psaComplete(state)) return state;
   const mid = (state.lo + state.hi) / 2;
-  const choice = { round: state.round, side, lo: state.lo, hi: state.hi, lower: state.lo, higher: state.hi };
+  const { lower, higher } = psaCandidates(state);
+  const choice = { round: state.round, side, lo: state.lo, hi: state.hi, lower, higher };
   const next = {
     ...state,
     choices: [...state.choices, choice],
