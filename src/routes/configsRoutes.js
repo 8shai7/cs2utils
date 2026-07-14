@@ -12,6 +12,7 @@ function serialize(row, myRating) {
     id: row.id,
     authorId: row.author_id,
     authorName: row.author_name,
+    authorAvatar: row.author_avatar || null,
     title: row.title,
     description: row.description || '',
     configText: row.config_text || '',
@@ -45,7 +46,7 @@ configsRoutes.get(
         : 'AVG(r.rating) DESC, COUNT(r.id) DESC, c.created_at DESC';
 
     const [rows] = await pool.query(
-      `SELECT c.*, u.username AS author_name, AVG(r.rating) AS avg_rating, COUNT(r.id) AS rating_count
+      `SELECT c.*, u.username AS author_name, COALESCE(NULLIF(u.avatar_url, ''), u.steam_avatar) AS author_avatar, AVG(r.rating) AS avg_rating, COUNT(r.id) AS rating_count
        FROM configs c
        JOIN users u ON u.id = c.author_id
        LEFT JOIN config_ratings r ON r.config_id = c.id
@@ -89,7 +90,7 @@ configsRoutes.post(
       [req.user.id, title, description || null, configText.trim() ? configText : null, videoText.trim() ? videoText : null],
     );
     const [rows] = await pool.query(
-      'SELECT c.*, u.username AS author_name, NULL AS avg_rating, 0 AS rating_count FROM configs c JOIN users u ON u.id = c.author_id WHERE c.id = ?',
+      `SELECT c.*, u.username AS author_name, COALESCE(NULLIF(u.avatar_url, ''), u.steam_avatar) AS author_avatar, NULL AS avg_rating, 0 AS rating_count FROM configs c JOIN users u ON u.id = c.author_id WHERE c.id = ?`,
       [result.insertId],
     );
     res.status(201).json({ config: serialize(rows[0]) });

@@ -25,6 +25,7 @@ function serializeNade(row, media) {
     id: row.id,
     authorId: row.author_id,
     authorName: row.author_name,
+    authorAvatar: row.author_avatar || null,
     map: row.map,
     type: row.type,
     side: row.side,
@@ -85,7 +86,7 @@ nadesRoutes.get(
   requireAuth,
   asyncHandler(async (req, res) => {
     const { map, type } = req.query;
-    let sql = `SELECT n.*, u.username AS author_name
+    let sql = `SELECT n.*, u.username AS author_name, COALESCE(NULLIF(u.avatar_url, ''), u.steam_avatar) AS author_avatar
       FROM nade_favorites f
       JOIN nades n ON n.id = f.nade_id
       JOIN users u ON u.id = n.author_id
@@ -142,7 +143,7 @@ nadesRoutes.get(
   asyncHandler(async (req, res) => {
     const { map, type } = req.query;
     let sql =
-      "SELECT n.*, u.username AS author_name FROM nades n JOIN users u ON u.id = n.author_id WHERE n.status = 'approved'";
+      "SELECT n.*, u.username AS author_name, COALESCE(NULLIF(u.avatar_url, ''), u.steam_avatar) AS author_avatar FROM nades n JOIN users u ON u.id = n.author_id WHERE n.status = 'approved'";
     const params = [];
     if (map && MAP_IDS.includes(map)) {
       sql += ' AND n.map = ?';
@@ -164,7 +165,7 @@ nadesRoutes.get(
   requireAuth,
   asyncHandler(async (req, res) => {
     const [rows] = await pool.query(
-      'SELECT n.*, u.username AS author_name FROM nades n JOIN users u ON u.id = n.author_id WHERE n.author_id = ? ORDER BY n.created_at DESC',
+      `SELECT n.*, u.username AS author_name, COALESCE(NULLIF(u.avatar_url, ''), u.steam_avatar) AS author_avatar FROM nades n JOIN users u ON u.id = n.author_id WHERE n.author_id = ? ORDER BY n.created_at DESC`,
       [req.user.id],
     );
     res.json({ nades: await withMedia(rows) });
@@ -280,7 +281,7 @@ nadesRoutes.post(
 
     const placeholders = created.map(() => '?').join(',');
     const [rows] = await pool.query(
-      `SELECT n.*, u.username AS author_name FROM nades n JOIN users u ON u.id = n.author_id
+      `SELECT n.*, u.username AS author_name, COALESCE(NULLIF(u.avatar_url, ''), u.steam_avatar) AS author_avatar FROM nades n JOIN users u ON u.id = n.author_id
        WHERE n.id IN (${placeholders}) ORDER BY n.id ASC`,
       created,
     );
@@ -360,7 +361,7 @@ nadesRoutes.post(
 
     const placeholders = ids.map(() => '?').join(',');
     const [rows] = await pool.query(
-      `SELECT n.*, u.username AS author_name FROM nades n
+      `SELECT n.*, u.username AS author_name, COALESCE(NULLIF(u.avatar_url, ''), u.steam_avatar) AS author_avatar FROM nades n
        JOIN users u ON u.id = n.author_id
        WHERE n.id IN (${placeholders}) AND n.status = 'approved'`,
       ids,
@@ -462,7 +463,7 @@ nadesRoutes.post(
     }
 
     const [rows] = await pool.query(
-      'SELECT n.*, u.username AS author_name FROM nades n JOIN users u ON u.id = n.author_id WHERE n.id = ?',
+      `SELECT n.*, u.username AS author_name, COALESCE(NULLIF(u.avatar_url, ''), u.steam_avatar) AS author_avatar FROM nades n JOIN users u ON u.id = n.author_id WHERE n.id = ?`,
       [nadeId],
     );
     const [nade] = await withMedia(rows);

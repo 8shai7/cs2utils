@@ -21,6 +21,7 @@ import {
   readDownloadOptions,
 } from './tryInGame.js';
 import { showToast } from './toast.js';
+import { authorChipHtml } from './authorChip.js';
 
 const CANVAS_SIZE = 360;
 const BROWSE_TRY_MAX = 100;
@@ -266,7 +267,7 @@ function nadeCardHtml(nade, { showStatus = false, showTryInGame = false, adminRe
         data-sx="${nade.start.x}" data-sy="${nade.start.y}" data-ex="${nade.end.x}" data-ey="${nade.end.y}"></canvas>
       ${nade.description ? `<p class="nade-desc">${esc(nade.description)}</p>` : ''}
       ${mediaHtml}
-      <p class="nade-foot">by ${esc(nade.authorName)} · ${fmtDate(nade.createdAt)}</p>
+      <div class="nade-foot">${authorChipHtml(nade, { date: fmtDate(nade.createdAt) })}</div>
       ${tryBtn}
     </article>`;
 }

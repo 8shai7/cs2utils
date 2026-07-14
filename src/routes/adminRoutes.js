@@ -148,7 +148,7 @@ adminRoutes.get(
   '/nades/pending',
   asyncHandler(async (_req, res) => {
     const [rows] = await pool.query(
-      `SELECT DISTINCT n.*, u.username AS author_name
+      `SELECT DISTINCT n.*, u.username AS author_name, COALESCE(NULLIF(u.avatar_url, ''), u.steam_avatar) AS author_avatar
        FROM nades n
        JOIN users u ON u.id = n.author_id
        LEFT JOIN nade_media m ON m.nade_id = n.id
@@ -507,7 +507,7 @@ adminRoutes.get(
   '/highlights/reports',
   asyncHandler(async (_req, res) => {
     const [rows] = await pool.query(
-      `SELECT h.id, h.title, h.description, h.url, h.author_id, u.username AS author_name, h.created_at,
+      `SELECT h.id, h.title, h.description, h.url, h.author_id, u.username AS author_name, COALESCE(NULLIF(u.avatar_url, ''), u.steam_avatar) AS author_avatar, h.created_at,
               r.id AS report_id, r.reason, r.reporter_name, r.created_at AS reported_at
        FROM highlight_reports r
        JOIN highlights h ON h.id = r.highlight_id
@@ -525,6 +525,7 @@ adminRoutes.get(
           url: row.url,
           authorId: row.author_id,
           authorName: row.author_name,
+          authorAvatar: row.author_avatar || null,
           createdAt: row.created_at,
           reports: [],
         });
@@ -556,7 +557,7 @@ adminRoutes.post(
     const decision = req.body?.decision;
     if (decision !== 'keep' && decision !== 'delete') throw new ApiError(400, 'Invalid decision.');
     const [rows] = await pool.query(
-      'SELECT h.id, h.title, u.username AS author_name FROM highlights h JOIN users u ON u.id = h.author_id WHERE h.id = ?',
+      `SELECT h.id, h.title, u.username AS author_name, COALESCE(NULLIF(u.avatar_url, ''), u.steam_avatar) AS author_avatar FROM highlights h JOIN users u ON u.id = h.author_id WHERE h.id = ?`,
       [req.params.id],
     );
     if (decision === 'delete') {

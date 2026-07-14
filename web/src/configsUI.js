@@ -1,6 +1,7 @@
 import { api, isAdmin } from './api.js';
 import { getUser, subscribe } from './session.js';
 import { openAuth } from './headerAuth.js';
+import { authorChipHtml } from './authorChip.js';
 
 let tool;
 let session = null;
@@ -107,7 +108,7 @@ function cardHtml(c) {
           : ''
       }
       <div class="config-foot">
-        <span>by ${esc(c.authorName)} · ${fmtDate(c.createdAt)}</span>
+        ${authorChipHtml(c, { date: fmtDate(c.createdAt) })}
         <span class="config-rate">${ratingRow(c)}</span>
       </div>
     </article>`;
