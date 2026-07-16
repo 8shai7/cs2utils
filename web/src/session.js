@@ -32,7 +32,17 @@ export async function login(input) {
 }
 
 export async function register(input) {
-  current = await api.auth.register(input);
+  // May return { verifyRequired } (no session) or { user } (auto-logged-in).
+  const data = await api.auth.register(input);
+  if (data && data.user) {
+    current = data.user;
+    emit();
+  }
+  return data;
+}
+
+export async function verifyEmail(token) {
+  current = await api.auth.verify(token);
   emit();
   return current;
 }

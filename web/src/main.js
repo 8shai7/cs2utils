@@ -27,7 +27,7 @@ import { initAdminTool } from './adminUI.js';
 import { initHeaderAuth, openReset } from './headerAuth.js';
 import { openContactModal } from './contactModal.js';
 import { api, adoptToken } from './api.js';
-import { refresh as refreshSession } from './session.js';
+import { refresh as refreshSession, verifyEmail } from './session.js';
 import { renderCrosshairPreview } from './preview.js';
 import { initMagnifier } from './magnifier.js';
 import {
@@ -1308,6 +1308,26 @@ document.addEventListener('aimkit:settings-updated', loadDonate);
 document.querySelector('#contact-open')?.addEventListener('click', openContactModal);
 
 initHeaderAuth();
+
+// Small transient banner for deep-link feedback.
+function flash(message, ok = true) {
+  const el = document.createElement('div');
+  el.className = `flash-banner ${ok ? 'ok' : 'error'}`;
+  el.textContent = message;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 5000);
+}
+
+// Email-verification deep link: /?verify=<token>
+const verifyToken = new URLSearchParams(window.location.search).get('verify');
+if (verifyToken) {
+  verifyEmail(verifyToken)
+    .then(() => flash('Email verified — you are now logged in!'))
+    .catch((err) => flash(err.message || 'Verification link is invalid or expired.', false));
+  const url = new URL(window.location.href);
+  url.searchParams.delete('verify');
+  window.history.replaceState({}, '', url);
+}
 
 // Password-reset deep link: /?reset=<token>
 const resetToken = new URLSearchParams(window.location.search).get('reset');

@@ -2279,6 +2279,28 @@ input[type='color'] {
   display: none !important;
 }
 
+.flash-banner {
+  position: fixed;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  max-width: min(92vw, 480px);
+  padding: 0.7rem 1.2rem;
+  border-radius: 10px;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+.flash-banner.ok {
+  background: var(--success);
+  color: #06210f;
+}
+.flash-banner.error {
+  background: var(--error);
+  color: #2a0b0b;
+}
+
 #sensitivity-tool .converter-panel {
   padding: 1.2rem;
 }

@@ -25,6 +25,13 @@ export function openContactModal() {
         <label class="field"><span>Your email</span><input id="contact-email" type="email" value="${esc(user?.email || '')}" /></label>
         <label class="field"><span>Subject</span><input id="contact-subject" type="text" placeholder="What's this about?" /></label>
         <label class="field"><span>Message</span><textarea id="contact-message" rows="5" placeholder="How can we help?"></textarea></label>
+        <div class="captcha-field">
+          <div class="captcha-row">
+            <div class="captcha-image" id="contact-captcha-img"></div>
+            <button type="button" class="captcha-refresh" id="contact-captcha-refresh" title="New image" aria-label="New image">&#8635;</button>
+          </div>
+          <label class="field"><span>Enter the characters above</span><input id="contact-captcha" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" /></label>
+        </div>
         <button class="btn primary" type="submit">Send message</button>
         <p class="status" id="contact-status"></p>
       </form>
@@ -35,6 +42,25 @@ export function openContactModal() {
   el.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', close));
 
   const statusEl = el.querySelector('#contact-status');
+  let captchaToken = null;
+
+  async function loadCaptcha() {
+    try {
+      const c = await api.auth.captcha();
+      captchaToken = c.token;
+      const img = el.querySelector('#contact-captcha-img');
+      if (img) img.innerHTML = c.svg;
+    } catch {
+      /* ignore; server will require it on submit */
+    }
+  }
+  loadCaptcha();
+  el.querySelector('#contact-captcha-refresh')?.addEventListener('click', () => {
+    const inp = el.querySelector('#contact-captcha');
+    if (inp) inp.value = '';
+    loadCaptcha();
+  });
+
   el.querySelector('#contact-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const data = {
@@ -42,6 +68,8 @@ export function openContactModal() {
       email: el.querySelector('#contact-email').value,
       subject: el.querySelector('#contact-subject').value,
       message: el.querySelector('#contact-message').value,
+      captchaToken,
+      captchaAnswer: el.querySelector('#contact-captcha').value,
     };
     statusEl.textContent = 'Sending…';
     statusEl.className = 'status';
@@ -53,6 +81,10 @@ export function openContactModal() {
     } catch (err) {
       statusEl.textContent = err.message;
       statusEl.className = 'status error';
+      // Refresh the captcha on any failure (esp. a wrong/expired captcha).
+      const inp = el.querySelector('#contact-captcha');
+      if (inp) inp.value = '';
+      loadCaptcha();
     }
   });
 

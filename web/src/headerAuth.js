@@ -7,6 +7,7 @@ let menuEl;
 let modalEl;
 let authMode = 'login';
 let captcha = { required: false, token: null, svg: '' };
+let pendingEmail = '';
 
 function esc(str) {
   return String(str ?? '')
@@ -43,6 +44,27 @@ function renderMenu() {
 function renderModal() {
   const isLogin = authMode === 'login';
   const isForgot = authMode === 'forgot';
+  const isVerify = authMode === 'verify';
+
+  if (isVerify) {
+    modalEl.innerHTML = `
+      <div class="modal-backdrop" data-close></div>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-label="Verify your email">
+        <button class="modal-close" data-close aria-label="Close">&times;</button>
+        <h2 class="modal-title">Verify your email</h2>
+        <p class="hint">We sent a verification link to <strong>${esc(pendingEmail)}</strong>. Click it to activate your account, then log in.</p>
+        <div class="actions">
+          <button class="btn" id="hdr-resend" type="button">Resend email</button>
+          <button class="btn ghost" data-mode="login" type="button">Back to log in</button>
+        </div>
+        <p class="status" id="hdr-auth-status"></p>
+      </div>`;
+    modalEl.querySelectorAll('[data-close]').forEach((el) => el.addEventListener('click', closeModal));
+    modalEl.querySelectorAll('[data-mode]').forEach((el) => el.addEventListener('click', () => setMode(el.dataset.mode)));
+    modalEl.querySelector('#hdr-resend')?.addEventListener('click', onResend);
+    return;
+  }
+
   const title = isForgot ? 'Reset your password' : isLogin ? 'Welcome back' : 'Create your account';
   modalEl.innerHTML = `
     <div class="modal-backdrop" data-close></div>
@@ -70,7 +92,7 @@ function renderModal() {
             : `<label class="field"><span>Password</span><input id="hdr-password" type="password" autocomplete="${isLogin ? 'current-password' : 'new-password'}" /></label>`
         }
         ${
-          isLogin && captcha.required
+          captcha.required && !isForgot
             ? `<div class="captcha-field">
                  <div class="captcha-row">
                    <div class="captcha-image" id="hdr-captcha-img">${captcha.svg}</div>
@@ -102,12 +124,7 @@ function renderModal() {
     </div>`;
 
   modalEl.querySelectorAll('[data-close]').forEach((el) => el.addEventListener('click', closeModal));
-  modalEl.querySelectorAll('[data-mode]').forEach((el) =>
-    el.addEventListener('click', () => {
-      authMode = el.dataset.mode;
-      renderModal();
-    }),
-  );
+  modalEl.querySelectorAll('[data-mode]').forEach((el) => el.addEventListener('click', () => setMode(el.dataset.mode)));
   modalEl.querySelector('#hdr-auth-form').addEventListener('submit', onSubmit);
   modalEl.querySelector('#hdr-captcha-refresh')?.addEventListener('click', async () => {
     await loadCaptcha();
@@ -126,6 +143,35 @@ async function loadCaptcha() {
     captcha.svg = c.svg;
   } catch {
     /* ignore — the next submit will re-request */
+  }
+}
+
+// Switch the modal view. Register always shows a CAPTCHA (anti-spam).
+async function setMode(mode) {
+  authMode = mode;
+  if (mode === 'register') {
+    captcha.required = true;
+    if (!captcha.svg) await loadCaptcha();
+  } else if (mode !== 'verify') {
+    captcha.required = false;
+  }
+  renderModal();
+}
+
+async function onResend() {
+  try {
+    const r = await api.auth.resendVerification(pendingEmail);
+    setStatus(r.message || 'Verification email sent.', 'ok');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+}
+
+function setStatus(text, kind) {
+  const s = modalEl.querySelector('#hdr-auth-status');
+  if (s) {
+    s.textContent = text;
+    s.className = `status ${kind || ''}`.trim();
   }
 }
 
@@ -149,30 +195,57 @@ async function onSubmit(e) {
   const password = modalEl.querySelector('#hdr-password')?.value || '';
   const username = modalEl.querySelector('#hdr-username')?.value || '';
   const captchaAnswer = modalEl.querySelector('#hdr-captcha')?.value || '';
-  try {
-    if (authMode === 'forgot') {
+
+  if (authMode === 'forgot') {
+    try {
       await api.auth.forgot(email);
-      const el = modalEl.querySelector('#hdr-auth-status');
-      el.textContent = 'If an account exists for that email, a reset link is on its way.';
-      el.className = 'status ok';
-      return;
+      setStatus('If an account exists for that email, a reset link is on its way.', 'ok');
+    } catch (err) {
+      setStatus(err.message, 'error');
     }
-    if (authMode === 'login') await login({ email, password, captchaToken: captcha.token, captchaAnswer });
-    else await register({ email, username, password });
+    return;
+  }
+
+  if (authMode === 'register') {
+    try {
+      const data = await register({ email, username, password, captchaToken: captcha.token, captchaAnswer });
+      if (data && data.verifyRequired) {
+        pendingEmail = data.email || email;
+        captcha = { required: false, token: null, svg: '' };
+        await setMode('verify');
+        setStatus(data.message || 'Check your email to verify your account.', 'ok');
+        return;
+      }
+      captcha = { required: false, token: null, svg: '' };
+      closeModal();
+    } catch (err) {
+      // Bad/expired captcha or rate limit → refresh the captcha and let them retry.
+      captcha.required = true;
+      await loadCaptcha();
+      rerenderPreserving();
+      setStatus(err.message, 'error');
+    }
+    return;
+  }
+
+  // login
+  try {
+    await login({ email, password, captchaToken: captcha.token, captchaAnswer });
     captcha = { required: false, token: null, svg: '' };
     closeModal();
   } catch (err) {
-    // A failed login may now require a captcha (or a fresh one after a wrong answer).
-    if (authMode === 'login' && err?.data?.captchaRequired) {
+    if (err?.data?.verifyRequired) {
+      pendingEmail = err.data.email || email;
+      await setMode('verify');
+      setStatus(err.message, 'error');
+      return;
+    }
+    if (err?.data?.captchaRequired) {
       captcha.required = true;
       await loadCaptcha();
       rerenderPreserving();
     }
-    const statusEl = modalEl.querySelector('#hdr-auth-status');
-    if (statusEl) {
-      statusEl.textContent = err.message;
-      statusEl.className = 'status error';
-    }
+    setStatus(err.message, 'error');
   }
 }
 
@@ -214,9 +287,8 @@ export function openReset(token) {
 }
 
 function openModal(mode) {
-  authMode = mode;
   modalEl.classList.remove('hidden');
-  renderModal();
+  setMode(mode);
 }
 
 function closeModal() {

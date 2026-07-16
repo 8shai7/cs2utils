@@ -90,9 +90,19 @@ export function resolveMediaUrl(url) {
 export const api = {
   auth: {
     async register(input) {
+      // Returns { verifyRequired, message } when email verification is needed
+      // (no session), or { user } and stores a token when auto-logged-in.
       const data = await request('POST', '/auth/register', input);
-      setToken(data.token);
+      if (data.token) setToken(data.token);
+      return data;
+    },
+    async verify(token) {
+      const data = await request('POST', '/auth/verify', { token });
+      if (data.token) setToken(data.token);
       return data.user;
+    },
+    async resendVerification(email) {
+      return request('POST', '/auth/resend-verification', { email });
     },
     async login(input) {
       const data = await request('POST', '/auth/login', input);
