@@ -50,6 +50,7 @@ const BUILTIN_DISPOSABLE = new Set([
   'luxusmail.org',
   'vmani.com',
   'cs.email',
+  'girl.re',
   'test.com',
   'example.com',
 ]);
