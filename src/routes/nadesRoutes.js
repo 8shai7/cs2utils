@@ -3,6 +3,9 @@ import { pool } from '../db.js';
 import { requireAuth, optionalAuth, isAdminRole } from '../auth.js';
 import { asyncHandler, ApiError, clamp01 } from '../util.js';
 import { MAP_IDS, TYPE_IDS, TECHNIQUE_IDS, SIDE_IDS, detectMediaKind } from '../meta.js';
+import { parseMapGuide, MAX_IMPORT } from '../parseMapGuide.js';
+import { buildPracticePack, buildPracticePackFromNades } from '../mapGuidePractice.js';
+import { writeOwnerLog } from '../ownerLog.js';
 
 export const nadesRoutes = Router();
 
@@ -22,6 +25,7 @@ function serializeNade(row, media) {
     id: row.id,
     authorId: row.author_id,
     authorName: row.author_name,
+    authorAvatar: row.author_avatar || null,
     map: row.map,
     type: row.type,
     side: row.side,
@@ -34,6 +38,7 @@ function serializeNade(row, media) {
     reviewedBy: row.reviewed_by,
     reviewNote: row.review_note || '',
     createdAt: row.created_at,
+    guideImportId: row.guide_import_id || null,
     media,
   };
 }
@@ -55,6 +60,82 @@ async function withMedia(nadeRows, { onlyApproved = false } = {}) {
   return nadeRows.map((n) => serializeNade(n, byNade.get(n.id) || []));
 }
 
+// Favorite counts + current user's favorites (optional auth).
+nadesRoutes.get(
+  '/social',
+  optionalAuth,
+  asyncHandler(async (req, res) => {
+    const [countRows] = await pool.query(
+      'SELECT nade_id, COUNT(*) AS count FROM nade_favorites GROUP BY nade_id',
+    );
+    const counts = {};
+    for (const r of countRows) counts[r.nade_id] = Number(r.count);
+
+    let mine = [];
+    if (req.user) {
+      const [mineRows] = await pool.query('SELECT nade_id FROM nade_favorites WHERE user_id = ?', [req.user.id]);
+      mine = mineRows.map((r) => Number(r.nade_id));
+    }
+    res.json({ counts, mine });
+  }),
+);
+
+// Current user's favorited approved nades.
+nadesRoutes.get(
+  '/favorites',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { map, type } = req.query;
+    let sql = `SELECT n.*, u.username AS author_name, COALESCE(NULLIF(u.avatar_url, ''), u.steam_avatar) AS author_avatar
+      FROM nade_favorites f
+      JOIN nades n ON n.id = f.nade_id
+      JOIN users u ON u.id = n.author_id
+      WHERE f.user_id = ? AND n.status = 'approved'`;
+    const params = [req.user.id];
+    if (map && MAP_IDS.includes(map)) {
+      sql += ' AND n.map = ?';
+      params.push(map);
+    }
+    if (type && TYPE_IDS.includes(type)) {
+      sql += ' AND n.type = ?';
+      params.push(type);
+    }
+    sql += ' ORDER BY f.created_at DESC';
+    const [rows] = await pool.query(sql, params);
+    res.json({ nades: await withMedia(rows, { onlyApproved: true }) });
+  }),
+);
+
+// Toggle favorite on an approved nade.
+nadesRoutes.post(
+  '/:id/favorite',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const nadeId = Number(req.params.id);
+    if (!Number.isFinite(nadeId) || nadeId <= 0) throw new ApiError(400, 'Invalid nade.');
+    const [rows] = await pool.query('SELECT id, status FROM nades WHERE id = ?', [nadeId]);
+    if (!rows.length) throw new ApiError(404, 'Nade not found.');
+    if (rows[0].status !== 'approved') throw new ApiError(400, 'Only approved nades can be favorited.');
+
+    const [existing] = await pool.query('SELECT id FROM nade_favorites WHERE nade_id = ? AND user_id = ?', [
+      nadeId,
+      req.user.id,
+    ]);
+    let favorited;
+    if (existing.length) {
+      await pool.query('DELETE FROM nade_favorites WHERE id = ?', [existing[0].id]);
+      favorited = false;
+    } else {
+      await pool.query('INSERT INTO nade_favorites (nade_id, user_id) VALUES (?, ?)', [nadeId, req.user.id]);
+      favorited = true;
+    }
+    const [[{ count }]] = await pool.query('SELECT COUNT(*) AS count FROM nade_favorites WHERE nade_id = ?', [
+      nadeId,
+    ]);
+    res.json({ favorited, count: Number(count) });
+  }),
+);
+
 // Public: approved nades (with approved media only).
 nadesRoutes.get(
   '/',
@@ -62,7 +143,7 @@ nadesRoutes.get(
   asyncHandler(async (req, res) => {
     const { map, type } = req.query;
     let sql =
-      "SELECT n.*, u.username AS author_name FROM nades n JOIN users u ON u.id = n.author_id WHERE n.status = 'approved'";
+      "SELECT n.*, u.username AS author_name, COALESCE(NULLIF(u.avatar_url, ''), u.steam_avatar) AS author_avatar FROM nades n JOIN users u ON u.id = n.author_id WHERE n.status = 'approved'";
     const params = [];
     if (map && MAP_IDS.includes(map)) {
       sql += ' AND n.map = ?';
@@ -84,10 +165,259 @@ nadesRoutes.get(
   requireAuth,
   asyncHandler(async (req, res) => {
     const [rows] = await pool.query(
-      'SELECT n.*, u.username AS author_name FROM nades n JOIN users u ON u.id = n.author_id WHERE n.author_id = ? ORDER BY n.created_at DESC',
+      `SELECT n.*, u.username AS author_name, COALESCE(NULLIF(u.avatar_url, ''), u.steam_avatar) AS author_avatar FROM nades n JOIN users u ON u.id = n.author_id WHERE n.author_id = ? ORDER BY n.created_at DESC`,
       [req.user.id],
     );
     res.json({ nades: await withMedia(rows) });
+  }),
+);
+
+// Parse a CS2 Map Guide / annotation .txt without creating nades (preview).
+nadesRoutes.post(
+  '/map-guide/parse',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const text = req.body?.text;
+    try {
+      const parsed = parseMapGuide(text);
+      res.json({
+        map: parsed.map,
+        mapName: parsed.mapName,
+        skipped: parsed.skipped,
+        totalNodes: parsed.totalNodes,
+        maxImport: MAX_IMPORT,
+        nades: parsed.nades,
+      });
+    } catch (err) {
+      throw new ApiError(400, err.message || 'Could not parse map guide.');
+    }
+  }),
+);
+
+// Import parsed (or raw) CS2 Map Guide lineups as pending nades.
+nadesRoutes.post(
+  '/map-guide/import',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const b = req.body || {};
+    const side = SIDE_IDS.includes(b.side) ? b.side : 't';
+    const guideText = String(b.guideText || b.text || '').trim();
+
+    let drafts;
+    let mapForImport = null;
+    if (Array.isArray(b.nades) && b.nades.length) {
+      drafts = b.nades;
+      mapForImport = drafts[0]?.map || null;
+    } else if (guideText) {
+      try {
+        const parsed = parseMapGuide(guideText);
+        drafts = parsed.nades;
+        mapForImport = parsed.map;
+      } catch (err) {
+        throw new ApiError(400, err.message || 'Could not parse map guide.');
+      }
+    } else {
+      throw new ApiError(400, 'Provide map guide text or a list of nades to import.');
+    }
+
+    if (drafts.length > MAX_IMPORT) {
+      throw new ApiError(400, `Too many lineups (max ${MAX_IMPORT} per import).`);
+    }
+
+    let guideImportId = null;
+    if (guideText && mapForImport && MAP_IDS.includes(mapForImport)) {
+      const [guideResult] = await pool.query(
+        `INSERT INTO map_guide_imports (author_id, map, file_name, guide_text) VALUES (?, ?, ?, ?)`,
+        [req.user.id, mapForImport, String(b.fileName || '').slice(0, 160) || null, guideText],
+      );
+      guideImportId = guideResult.insertId;
+    }
+
+    const created = [];
+    for (const draft of drafts) {
+      const title = String(draft.title || '').trim();
+      if (title.length < 3) continue;
+      if (!MAP_IDS.includes(draft.map)) continue;
+      if (!TYPE_IDS.includes(draft.type)) continue;
+      if (!draft.start || !draft.end) continue;
+      const technique = TECHNIQUE_IDS.includes(draft.technique) ? draft.technique : 'stand';
+      const description = String(draft.description || '').trim() || null;
+
+      const [result] = await pool.query(
+        `INSERT INTO nades (
+           author_id, map, type, side, technique, title, description,
+           start_x, start_y, end_x, end_y, status, guide_import_id, guide_node_id,
+           start_wx, start_wy, start_wz, end_wx, end_wy, end_wz, aim_wx, aim_wy, aim_wz
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          req.user.id,
+          draft.map,
+          draft.type,
+          side,
+          technique,
+          title.slice(0, 160),
+          description,
+          clamp01(draft.start.x),
+          clamp01(draft.start.y),
+          clamp01(draft.end.x),
+          clamp01(draft.end.y),
+          guideImportId,
+          draft.sourceNodeId ? String(draft.sourceNodeId).slice(0, 64) : null,
+          draft.startWorld?.x ?? null,
+          draft.startWorld?.y ?? null,
+          draft.startWorld?.z ?? null,
+          draft.endWorld?.x ?? null,
+          draft.endWorld?.y ?? null,
+          draft.endWorld?.z ?? null,
+          draft.aimWorld?.x ?? null,
+          draft.aimWorld?.y ?? null,
+          draft.aimWorld?.z ?? null,
+        ],
+      );
+      created.push(result.insertId);
+    }
+
+    if (!created.length) throw new ApiError(400, 'No valid lineups to import.');
+
+    const placeholders = created.map(() => '?').join(',');
+    const [rows] = await pool.query(
+      `SELECT n.*, u.username AS author_name, COALESCE(NULLIF(u.avatar_url, ''), u.steam_avatar) AS author_avatar FROM nades n JOIN users u ON u.id = n.author_id
+       WHERE n.id IN (${placeholders}) ORDER BY n.id ASC`,
+      created,
+    );
+    res.status(201).json({
+      count: created.length,
+      guideImportId,
+      nades: await withMedia(rows),
+    });
+  }),
+);
+
+// Build a "Try in game" practice pack (guide + cfg + Steam URL) from pasted text.
+nadesRoutes.post(
+  '/map-guide/practice-pack',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const text = String(req.body?.text || '').trim();
+    let mapId = req.body?.map;
+    if (!mapId && text) {
+      try {
+        mapId = parseMapGuide(text).map;
+      } catch (err) {
+        throw new ApiError(400, err.message || 'Could not parse map guide.');
+      }
+    }
+    if (!MAP_IDS.includes(mapId)) throw new ApiError(400, 'Choose a valid map.');
+    try {
+      res.json({ pack: buildPracticePack({ mapId, guideText: text, importId: req.body?.importId || null }) });
+    } catch (err) {
+      throw new ApiError(400, err.message || 'Could not build practice pack.');
+    }
+  }),
+);
+
+// Practice pack for a previously imported map guide.
+// Author/admin always; anyone if at least one linked nade is approved (Browse → Try in game).
+nadesRoutes.get(
+  '/map-guide/imports/:id/practice-pack',
+  optionalAuth,
+  asyncHandler(async (req, res) => {
+    const [rows] = await pool.query('SELECT * FROM map_guide_imports WHERE id = ?', [req.params.id]);
+    if (!rows.length) throw new ApiError(404, 'Map guide import not found.');
+    const row = rows[0];
+    const isOwner = req.user && (row.author_id === req.user.id || isAdminRole(req.user.role));
+    if (!isOwner) {
+      const [[{ count }]] = await pool.query(
+        "SELECT COUNT(*) AS count FROM nades WHERE guide_import_id = ? AND status = 'approved'",
+        [row.id],
+      );
+      if (!Number(count)) throw new ApiError(403, 'This guide is not public yet.');
+    }
+    try {
+      res.json({
+        pack: buildPracticePack({
+          mapId: row.map,
+          guideText: row.guide_text,
+          importId: row.id,
+        }),
+        fileName: row.file_name,
+      });
+    } catch (err) {
+      throw new ApiError(400, err.message || 'Could not build practice pack.');
+    }
+  }),
+);
+
+// Build a practice pack from approved nades (Browse → Try in game).
+nadesRoutes.post(
+  '/map-guide/practice-pack-from-nades',
+  optionalAuth,
+  asyncHandler(async (req, res) => {
+    const ids = Array.isArray(req.body?.nadeIds)
+      ? req.body.nadeIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+      : [];
+    if (!ids.length) throw new ApiError(400, 'Select at least one nade.');
+    if (ids.length > 100) throw new ApiError(400, 'Too many nades (max 100).');
+
+    const placeholders = ids.map(() => '?').join(',');
+    const [rows] = await pool.query(
+      `SELECT n.*, u.username AS author_name, COALESCE(NULLIF(u.avatar_url, ''), u.steam_avatar) AS author_avatar FROM nades n
+       JOIN users u ON u.id = n.author_id
+       WHERE n.id IN (${placeholders}) AND n.status = 'approved'`,
+      ids,
+    );
+    if (!rows.length) throw new ApiError(404, 'No approved nades found.');
+
+    const mapId = rows[0].map;
+    if (!rows.every((r) => r.map === mapId)) {
+      throw new ApiError(400, 'All nades must be on the same map to open together in CS2.');
+    }
+
+    // Prefer exact annotation nodes from the original import(s) so in-game
+    // markers keep true world XYZ (radar round-trips lose height + precision).
+    const importIds = [
+      ...new Set(rows.map((r) => r.guide_import_id).filter((id) => id != null)),
+    ];
+    const guidesByImportId = new Map();
+    if (importIds.length) {
+      const ph = importIds.map(() => '?').join(',');
+      const [guides] = await pool.query(
+        `SELECT id, guide_text FROM map_guide_imports WHERE id IN (${ph})`,
+        importIds,
+      );
+      for (const g of guides) guidesByImportId.set(Number(g.id), g.guide_text);
+    }
+
+    const nades = rows.map((r) => ({
+      title: r.title,
+      description: r.description || '',
+      type: r.type,
+      technique: r.technique,
+      start: { x: r.start_x, y: r.start_y },
+      end: { x: r.end_x, y: r.end_y },
+      guideImportId: r.guide_import_id || null,
+      guideNodeId: r.guide_node_id || null,
+      startWorld:
+        r.start_wx != null
+          ? { x: r.start_wx, y: r.start_wy, z: r.start_wz }
+          : null,
+      endWorld:
+        r.end_wx != null ? { x: r.end_wx, y: r.end_wy, z: r.end_wz } : null,
+      aimWorld:
+        r.aim_wx != null ? { x: r.aim_wx, y: r.aim_wy, z: r.aim_wz } : null,
+    }));
+    try {
+      res.json({
+        pack: buildPracticePackFromNades(mapId, nades, {
+          loadName: `aimkit_${mapId}_x${rows.length}_${ids[0]}`,
+          guidesByImportId,
+        }),
+        source: 'nades',
+        count: nades.length,
+      });
+    } catch (err) {
+      throw new ApiError(400, err.message || 'Could not build practice pack.');
+    }
   }),
 );
 
@@ -133,7 +463,7 @@ nadesRoutes.post(
     }
 
     const [rows] = await pool.query(
-      'SELECT n.*, u.username AS author_name FROM nades n JOIN users u ON u.id = n.author_id WHERE n.id = ?',
+      `SELECT n.*, u.username AS author_name, COALESCE(NULLIF(u.avatar_url, ''), u.steam_avatar) AS author_avatar FROM nades n JOIN users u ON u.id = n.author_id WHERE n.id = ?`,
       [nadeId],
     );
     const [nade] = await withMedia(rows);
@@ -176,6 +506,17 @@ nadesRoutes.delete(
       throw new ApiError(403, 'You can only delete your own nades.');
     }
     await pool.query('DELETE FROM nades WHERE id = ?', [nade.id]);
+    const asAdmin = nade.author_id !== req.user.id && isAdminRole(req.user.role);
+    await writeOwnerLog({
+      actor: req.user,
+      action: asAdmin ? 'nade.admin_delete' : 'nade.delete',
+      entityType: 'nade',
+      entityId: nade.id,
+      summary: asAdmin
+        ? `Admin deleted nade “${nade.title}” (${nade.map}/${nade.type}, was ${nade.status})`
+        : `Deleted own nade “${nade.title}” (${nade.map}/${nade.type}, was ${nade.status})`,
+      detail: { authorId: nade.author_id, status: nade.status },
+    });
     res.json({ ok: true });
   }),
 );

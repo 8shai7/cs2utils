@@ -29,30 +29,53 @@ function crosshairAlpha(crosshair) {
   return Math.min(1, Math.max(0, crosshair.alpha / 255));
 }
 
+/** Source HUD YRES — crosshair units are authored against a 480p reference. */
+function yres(value, resHeight) {
+  return Number(value) * (Number(resHeight) / 480);
+}
+
+/** Match Liquipedia / Source HUD rounding for crosshair pip sizes. */
+function roundHud(number) {
+  const n = Number(number);
+  if (!Number.isFinite(n)) return 0;
+  const whole = Math.trunc(n);
+  const frac = Math.abs(n - whole);
+  const frac3 = Math.round(frac * 1000) / 1000;
+  if (frac3 > 0.5) return n >= 0 ? Math.ceil(n) : Math.floor(n);
+  if (frac3 === 0.5) return n >= 0 ? Math.floor(n - 0.1) : Math.ceil(n + 0.1);
+  return n >= 0 ? Math.floor(n) : Math.ceil(n);
+}
+
+function simpleRound(number) {
+  const n = Number(number);
+  return n >= 0 ? Math.floor(n + 0.5) : Math.ceil(n - 0.5);
+}
+
 /**
- * @param {CanvasRenderingContext2D} ctx
- * @param {number} cx
- * @param {number} cy
- * @param {number} length
- * @param {number} thickness
- * @param {string} color
- * @param {number} alpha
+ * Pixel sizes for a crosshair at a given vertical resolution (CS2 / Source HUD).
+ * @param {Crosshair} crosshair
+ * @param {number} resHeight
  */
-function drawArm(ctx, cx, cy, length, thickness, color, alpha) {
-  ctx.fillStyle = color;
-  ctx.globalAlpha = alpha;
-  ctx.fillRect(cx - thickness / 2, cy - length, thickness, length * 2);
+export function crosshairPixelMetrics(crosshair, resHeight = 1080) {
+  const h = Number(resHeight) || 1080;
+  const length = Math.max(0, roundHud(yres(crosshair.length, h)));
+  const thickness = Math.max(1, roundHud(yres(crosshair.thickness, h)));
+  // Classic styles: inner gap between opposite arms (Liquipedia Module:Crosshair).
+  const gapInner = 2 * (4 + simpleRound(crosshair.gap)) + thickness;
+  const outline = crosshair.outlineEnabled
+    ? Math.max(1, roundHud(yres(crosshair.outline, h)))
+    : 0;
+  return { length, thickness, gapInner, outline, resHeight: h };
 }
 
 /**
  * @param {HTMLCanvasElement} canvas
  * @param {Crosshair | null} crosshair
- * @param {number} [scale] canvas pixels per crosshair unit. When the canvas
- *   backing store represents the full screen height (1080 units), pass
- *   canvas.height / 1080 so the crosshair is drawn as a true fraction of the
- *   whole screen rather than relative to the small preview box.
+ * @param {number | { resHeight?: number }} [scaleOrOpts]
+ *   Legacy: a number was "canvas px per crosshair unit" (incorrect for CS2).
+ *   Prefer `{ resHeight }` — vertical resolution the preview should simulate.
  */
-export function renderCrosshairPreview(canvas, crosshair, scale = 1) {
+export function renderCrosshairPreview(canvas, crosshair, scaleOrOpts = 1080) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
@@ -70,9 +93,6 @@ export function renderCrosshairPreview(canvas, crosshair, scale = 1) {
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);
 
-  // Grid + fonts are sized relative to the canvas so the look is consistent
-  // regardless of the backing-store resolution (the box may be a high-res
-  // full-screen render that CSS downscales to the panel).
   const gridStep = Math.max(24, Math.round(size / 9));
   ctx.strokeStyle = 'rgba(255,255,255,0.06)';
   ctx.lineWidth = Math.max(1, Math.round(size / 280));
@@ -97,19 +117,20 @@ export function renderCrosshairPreview(canvas, crosshair, scale = 1) {
     return;
   }
 
+  const resHeight =
+    typeof scaleOrOpts === 'object' && scaleOrOpts
+      ? Number(scaleOrOpts.resHeight) || 1080
+      : // Legacy numeric scale assumed 1080p units; map back to a height.
+        Math.round((Number(scaleOrOpts) || 1) * 1080);
+
   const color = crosshairColor(crosshair);
   const alpha = crosshairAlpha(crosshair);
+  const { length, thickness, gapInner, outline } = crosshairPixelMetrics(crosshair, resHeight);
 
-  // Real in-game pixel sizes: at 1080p, 1 unit ≈ 1 px and thickness 1 = 1 px.
-  // The game rounds to whole pixels and scales with vertical resolution.
-  const length = Math.max(0, Math.round(crosshair.length * scale));
-  const thickness = Math.max(1, Math.round(crosshair.thickness * scale));
-  const gap = Math.round(crosshair.gap * scale);
-  const outline = crosshair.outlineEnabled ? Math.max(1, Math.round(crosshair.outline * scale)) : 0;
-
-  // Align to the pixel grid so real 1px lines render crisply.
-  const px = Math.round(cx) + (thickness % 2 ? 0.0 : 0);
+  const px = Math.round(cx);
   const py = Math.round(cy);
+  const half = Math.floor(thickness / 2);
+  const gapHalf = gapInner / 2;
 
   const drawRect = (x, y, w, h) => {
     if (w <= 0 || h <= 0) return;
@@ -123,14 +144,12 @@ export function renderCrosshairPreview(canvas, crosshair, scale = 1) {
     ctx.fillRect(x, y, w, h);
   };
 
-  const half = Math.floor(thickness / 2);
-
   if (length > 0) {
     // right, left, bottom, and (unless T-style) top arms
-    drawRect(px + gap, py - half, length, thickness);
-    drawRect(px - gap - length, py - half, length, thickness);
-    drawRect(px - half, py + gap, thickness, length);
-    if (!crosshair.tStyleEnabled) drawRect(px - half, py - gap - length, thickness, length);
+    drawRect(px + gapHalf, py - half, length, thickness);
+    drawRect(px - gapHalf - length, py - half, length, thickness);
+    drawRect(px - half, py + gapHalf, thickness, length);
+    if (!crosshair.tStyleEnabled) drawRect(px - half, py - gapHalf - length, thickness, length);
   }
 
   if (crosshair.centerDotEnabled) {

@@ -1,10 +1,11 @@
-import { api, isAdmin } from './api.js';
+import { api, isAdmin, getToken } from './api.js';
 import { getUser, subscribe } from './session.js';
 import { openImportModal } from './importModal.js';
+import { openAuth } from './headerAuth.js';
 
 let tool;
 let session = null;
-let data = { pros: [], source: 'seed', lastSync: 0 };
+let data = { pros: [], total: 0, source: 'seed', lastSync: 0 };
 let sort = 'featured';
 let query = '';
 let searchTimer = null;
@@ -99,7 +100,7 @@ function cardHtml(p) {
 }
 
 function render() {
-  const adminBtn = isAdmin(session)
+  const adminBtn = isAdmin(session) && getToken()
     ? `<div class="pros-admin-actions">
          <button class="btn btn-sm" id="pros-sync">Sync from prosettings.net</button>
          <button class="btn btn-sm ghost" id="pros-import">Import from HLTV</button>
@@ -108,7 +109,7 @@ function render() {
   tool.innerHTML = `
     <div class="pros-shell">
       <div class="cmd-status-bar">
-        <div><strong>Source:</strong> ${esc(data.source)} · <strong>${data.pros.length}</strong> players${
+        <div><strong>Source:</strong> ${esc(data.source)} · <strong>${data.total || data.pros.length}</strong> players${
           data.lastSync ? ` · synced ${esc(new Date(data.lastSync).toLocaleDateString())}` : ''
         }</div>
         ${adminBtn}
@@ -168,6 +169,12 @@ function wire() {
 async function onSyncProsettings() {
   const btn = tool.querySelector('#pros-sync');
   if (btn) btn.disabled = true;
+  if (!getToken()) {
+    setStatus('Please log in as an admin to sync.', 'error');
+    openAuth('login');
+    if (btn) btn.disabled = false;
+    return;
+  }
   setStatus('Syncing from prosettings.net…', '');
   try {
     const res = await api.admin.syncPros();
@@ -175,7 +182,12 @@ async function onSyncProsettings() {
     if (res.synced) setStatus(`Synced ${res.count} players from ${res.source}.`, 'ok');
     else setStatus(`Sync failed: ${res.reason || 'unknown error'}. Kept the current list.`, 'error');
   } catch (err) {
-    setStatus(err.message, 'error');
+    if (err.status === 401) {
+      setStatus('Please log in as an admin to sync.', 'error');
+      openAuth('login');
+    } else {
+      setStatus(err.message, 'error');
+    }
   } finally {
     const b = tool.querySelector('#pros-sync');
     if (b) b.disabled = false;

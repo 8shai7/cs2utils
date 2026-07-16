@@ -1,6 +1,7 @@
 import { api, isAdmin } from './api.js';
 import { getUser, subscribe } from './session.js';
 import { openAuth } from './headerAuth.js';
+import { authorChipHtml } from './authorChip.js';
 
 let tool;
 let session = null;
@@ -75,7 +76,8 @@ function reportsPanelHtml() {
           (h) => `<div class="report-item">
             <div class="report-media">${embed(h.url)}</div>
             <div class="report-body">
-              <strong>${esc(h.title)}</strong> <span class="hint">by ${esc(h.authorName)}</span>
+              <strong>${esc(h.title)}</strong>
+              <div class="hl-report-author">${authorChipHtml(h)}</div>
               <ul class="report-reasons">
                 ${h.reports.map((r) => `<li><strong>${esc(r.reporterName)}:</strong> ${esc(r.reason || '(no reason given)')}</li>`).join('')}
               </ul>
@@ -99,7 +101,7 @@ function cardHtml(h) {
       <h3 class="hl-title">${esc(h.title)}</h3>
       ${h.description ? `<p class="hl-desc">${esc(h.description)}</p>` : ''}
       <div class="hl-foot">
-        <span>by ${esc(h.authorName)} · ${fmtDate(h.createdAt)}</span>
+        ${authorChipHtml(h, { date: fmtDate(h.createdAt) })}
         <span class="hl-actions">
           ${
             session

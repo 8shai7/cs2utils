@@ -88,7 +88,7 @@ function render() {
   }
 
   const initial = (session.username || '?').charAt(0).toUpperCase();
-  const s = stats || { nadesTotal: 0, nadesApproved: 0, nadesPending: 0, recommendations: 0, comments: 0 };
+  const s = stats || { nadesTotal: 0, nadesApproved: 0, nadesPending: 0, recommendations: 0, comments: 0, nadeFavorites: 0 };
 
   tool.innerHTML = `
     <div class="profile-shell">
@@ -113,6 +113,7 @@ function render() {
           ${statCard('Nades submitted', s.nadesTotal)}
           ${statCard('Approved', s.nadesApproved)}
           ${statCard('Pending', s.nadesPending)}
+          ${statCard('Favorite nades', s.nadeFavorites)}
           ${statCard('Commands recommended', s.recommendations)}
           ${statCard('Comments', s.comments)}
         </dl>

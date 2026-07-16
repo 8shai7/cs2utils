@@ -18,6 +18,7 @@ const SECTIONS = [
   { id: 'users', label: 'Users' },
   { id: 'sync', label: 'Data sync' },
   { id: 'contact', label: 'Contact' },
+  { id: 'logs', label: 'Logs', ownerOnly: true },
   { id: 'settings', label: 'Site settings', ownerOnly: true },
 ];
 
@@ -80,11 +81,21 @@ function overviewHtml() {
 function nadesHtml() {
   const nades = cache.nades || [];
   if (!nades.length) return `<p class="hint">Nothing pending. All nades are reviewed.</p>`;
-  return nades
-    .map((n) => {
-      const media = (n.media || [])
-        .map(
-          (m) => `
+  const pending = nades.filter((n) => n.status === 'pending');
+  return `
+    <div class="review-bulk-bar">
+      <label class="review-select-all">
+        <input type="checkbox" id="admin-nade-select-all" />
+        <span>Select all pending (${pending.length})</span>
+      </label>
+      <button class="btn btn-sm primary" type="button" id="admin-nade-bulk-approve" disabled>Approve selected</button>
+      <button class="btn btn-sm ghost" type="button" id="admin-nade-bulk-reject" disabled>Reject selected</button>
+    </div>
+    ${nades
+      .map((n) => {
+        const media = (n.media || [])
+          .map(
+            (m) => `
         <div class="admin-media">
           <a href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">${esc(m.kind || 'media')}</a>
           <span class="nade-badge ${esc(m.status)}">${esc(m.status)}</span>
@@ -92,14 +103,22 @@ function nadesHtml() {
             m.status === 'pending'
               ? `<button class="btn btn-sm" data-media-approve="${m.id}">Approve</button>
                  <button class="btn btn-sm ghost" data-media-reject="${m.id}">Reject</button>`
-              : ''
+              : m.status === 'approved'
+                ? `<button class="btn btn-sm ghost" data-media-reject="${m.id}">Unpublish</button>`
+                : `<button class="btn btn-sm" data-media-approve="${m.id}">Approve</button>`
           }
+          <button class="btn btn-sm ghost danger" data-media-delete="${m.id}">Remove</button>
         </div>`,
-        )
-        .join('');
-      return `
+          )
+          .join('');
+        return `
         <article class="panel admin-item">
           <div class="admin-item-head">
+            ${
+              n.status === 'pending'
+                ? `<label class="review-check"><input type="checkbox" class="admin-nade-check" value="${n.id}" /><span>Select</span></label>`
+                : ''
+            }
             <strong>${esc(n.title || 'Untitled')}</strong>
             <span class="nade-badge ${esc(n.status)}">${esc(n.status)}</span>
           </div>
@@ -110,10 +129,11 @@ function nadesHtml() {
           <div class="actions">
             <button class="btn btn-sm" data-nade-approve="${n.id}">Approve nade</button>
             <button class="btn btn-sm ghost" data-nade-reject="${n.id}">Reject nade</button>
+            <button class="btn btn-sm ghost danger" data-nade-delete="${n.id}">Delete</button>
           </div>
         </article>`;
-    })
-    .join('');
+      })
+      .join('')}`;
 }
 
 function commentsHtml() {
@@ -128,6 +148,7 @@ function commentsHtml() {
         <div class="actions">
           <button class="btn btn-sm" data-comment-approve="${c.id}">Approve</button>
           <button class="btn btn-sm ghost" data-comment-reject="${c.id}">Reject</button>
+          <button class="btn btn-sm ghost danger" data-comment-delete="${c.id}">Delete</button>
         </div>
       </article>`,
     )
@@ -163,10 +184,25 @@ function usersHtml() {
   const users = cache.users || [];
   if (!users.length) return `<p class="hint">No users.</p>`;
   const now = Date.now();
+  const ownerCanPromote = isOwner(session);
   const rows = users
     .map((u) => {
       const banned = u.bannedUntil && new Date(u.bannedUntil).getTime() > now;
       const isOwnerRow = u.role === 'owner';
+      const roleActions = isOwnerRow
+        ? '<span class="hint">owner</span>'
+        : ownerCanPromote
+          ? u.role === 'admin'
+            ? `<button class="btn btn-sm ghost" type="button" data-role-set="${u.id}" data-role="user">Remove admin</button>`
+            : `<button class="btn btn-sm primary" type="button" data-role-set="${u.id}" data-role="admin">Promote to admin</button>`
+          : `<span class="hint">${esc(u.role)}</span>`;
+      const banActions = isOwnerRow
+        ? ''
+        : banned
+          ? `<button class="btn btn-sm" data-unban="${u.id}">Unban</button>`
+          : `<input type="number" min="1" placeholder="hrs" class="admin-ban-hrs" data-ban-hrs="${u.id}" />
+             <button class="btn btn-sm ghost" data-ban="${u.id}">Ban</button>
+             <button class="btn btn-sm danger" data-ban-perma="${u.id}">Ban forever</button>`;
       return `
         <div class="admin-user">
           <div class="admin-user-main">
@@ -177,26 +213,19 @@ function usersHtml() {
             ).toLocaleDateString()}</div>
           </div>
           <div class="admin-user-actions">
-            ${
-              isOwnerRow
-                ? '<span class="hint">owner</span>'
-                : `<select data-role="${u.id}">
-                     <option value="user" ${u.role === 'user' ? 'selected' : ''}>user</option>
-                     <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>admin</option>
-                   </select>
-                   ${
-                     banned
-                       ? `<button class="btn btn-sm" data-unban="${u.id}">Unban</button>`
-                       : `<input type="number" min="1" placeholder="hrs" class="admin-ban-hrs" data-ban-hrs="${u.id}" />
-                          <button class="btn btn-sm ghost" data-ban="${u.id}">Ban</button>
-                          <button class="btn btn-sm danger" data-ban-perma="${u.id}">Ban forever</button>`
-                   }`
-            }
+            ${roleActions}
+            ${banActions}
           </div>
         </div>`;
     })
     .join('');
-  return `<div class="admin-users">${rows}</div>`;
+  return `
+    ${
+      ownerCanPromote
+        ? '<p class="hint">As owner you can promote users to admin or remove admin access. Ban controls are available to all admins.</p>'
+        : '<p class="hint">Only the site owner can promote users to admin.</p>'
+    }
+    <div class="admin-users">${rows}</div>`;
 }
 
 function syncHtml() {
@@ -237,6 +266,9 @@ function contactHtml() {
           m.sent ? 'emailed' : 'stored only'
         }</p>
         <p class="admin-message">${esc(m.message)}</p>
+        <div class="actions">
+          <button class="btn btn-sm ghost danger" data-contact-delete="${m.id}">Delete</button>
+        </div>
       </article>`,
     )
     .join('');
@@ -254,6 +286,79 @@ function settingsHtml() {
     </div>`;
 }
 
+function logsHtml() {
+  if (!isOwner(session)) return `<p class="hint">Owner only.</p>`;
+  const data = cache.logs || { total: 0, logs: [] };
+  const filter = cache.logsFilter || '';
+  const rows = data.logs || [];
+  const filterOpts = [
+    ['', 'All actions'],
+    ['nade.approve', 'Nade approve'],
+    ['nade.reject', 'Nade reject'],
+    ['nade.bulk_approve', 'Nade bulk approve'],
+    ['nade.bulk_reject', 'Nade bulk reject'],
+    ['nade.delete', 'Nade delete (author)'],
+    ['nade.admin_delete', 'Nade delete (admin)'],
+    ['media.approve', 'Media approve'],
+    ['media.reject', 'Media reject'],
+    ['comment.approve', 'Comment approve'],
+    ['comment.reject', 'Comment reject'],
+    ['comment.delete', 'Comment delete'],
+    ['media.delete', 'Media delete'],
+    ['contact.delete', 'Contact delete'],
+    ['highlight.keep', 'Highlight keep'],
+    ['highlight.delete', 'Highlight delete'],
+    ['user.role', 'User role'],
+    ['user.ban', 'User ban'],
+    ['user.unban', 'User unban'],
+    ['commands.sync', 'Commands sync'],
+    ['commands.import', 'Commands import'],
+    ['pros.sync', 'Pros sync'],
+    ['pros.import', 'Pros import'],
+    ['settings.save', 'Settings save'],
+  ]
+    .map(([v, label]) => `<option value="${esc(v)}" ${filter === v ? 'selected' : ''}>${esc(label)}</option>`)
+    .join('');
+  const list = rows.length
+    ? rows
+        .map((log) => {
+          const detail =
+            log.detail && typeof log.detail === 'object'
+              ? `<pre class="admin-log-detail">${esc(JSON.stringify(log.detail, null, 2))}</pre>`
+              : log.detail
+                ? `<pre class="admin-log-detail">${esc(String(log.detail))}</pre>`
+                : '';
+          return `
+        <article class="panel admin-item admin-log">
+          <div class="admin-item-head">
+            <span class="nade-badge">${esc(log.action)}</span>
+            <strong>${esc(log.summary || log.action)}</strong>
+            <span class="hint">${fmtDate(log.createdAt)}</span>
+          </div>
+          <p class="hint">by ${esc(log.actorName)} (${esc(log.actorRole)})${
+            log.entityType ? ` · ${esc(log.entityType)}${log.entityId != null ? ` #${esc(log.entityId)}` : ''}` : ''
+          }</p>
+          ${detail}
+        </article>`;
+        })
+        .join('')
+    : `<p class="hint">No log entries yet. Moderation and admin actions will show up here.</p>`;
+  return `
+    <div class="panel admin-item">
+      <div class="admin-item-head"><strong>Owner audit log</strong><span class="panel-tag">Owner only</span></div>
+      <p class="hint">Only you can see this. Admins’ approvals, bans, deletes, and syncs are recorded here.</p>
+      <div class="admin-log-toolbar">
+        <label class="field">
+          <span>Filter</span>
+          <select id="owner-logs-filter">${filterOpts}</select>
+        </label>
+        <button class="btn btn-sm" type="button" id="owner-logs-refresh">Refresh</button>
+        <span class="hint">${data.total || 0} total</span>
+      </div>
+    </div>
+    <div class="admin-logs">${list}</div>`;
+}
+
 const SECTION_RENDER = {
   overview: overviewHtml,
   nades: nadesHtml,
@@ -262,6 +367,7 @@ const SECTION_RENDER = {
   users: usersHtml,
   sync: syncHtml,
   contact: contactHtml,
+  logs: logsHtml,
   settings: settingsHtml,
 };
 
@@ -273,6 +379,9 @@ async function loadSection(id) {
     else if (id === 'reports') cache.reports = await api.admin.highlightReports();
     else if (id === 'users') cache.users = await api.admin.users();
     else if (id === 'contact') cache.contact = await api.admin.contactMessages();
+    else if (id === 'logs') {
+      cache.logs = await api.admin.ownerLogs({ action: cache.logsFilter || '' });
+    }
     else if (id === 'settings') cache.settings = await api.settings.get();
   } catch (err) {
     setStatus(err.message, 'error');
@@ -289,6 +398,7 @@ function render() {
     tool.querySelector('[data-open-auth]')?.addEventListener('click', () => openAuth('login'));
     return;
   }
+  if ((section === 'logs' || section === 'settings') && !isOwner(session)) section = 'overview';
   const tabs = SECTIONS.filter((s) => !s.ownerOnly || isOwner(session))
     .map(
       (s) =>
@@ -311,6 +421,9 @@ function render() {
 }
 
 async function goTo(id) {
+  if (id === 'logs' || id === 'settings') {
+    if (!isOwner(session)) id = 'overview';
+  }
   section = id;
   render();
   await loadSection(id);
@@ -326,7 +439,12 @@ function wire() {
       await fn();
       if (msg) setStatus(msg, 'ok');
     } catch (err) {
-      setStatus(err.message, 'error');
+      if (err.status === 401) {
+        setStatus('Please log in as an admin and try again.', 'error');
+        openAuth('login');
+      } else {
+        setStatus(err.message, 'error');
+      }
     }
   };
   const reload = async () => {
@@ -342,12 +460,51 @@ function wire() {
   tool.querySelectorAll('[data-nade-reject]').forEach((b) =>
     b.addEventListener('click', () => act(async () => { await api.admin.reviewNade(b.dataset.nadeReject, 'rejected'); await reload(); }, 'Nade rejected.')),
   );
+  tool.querySelectorAll('[data-nade-delete]').forEach((b) =>
+    b.addEventListener('click', () => {
+      if (!confirm('Permanently delete this nade and its media?')) return;
+      act(async () => { await api.nades.remove(b.dataset.nadeDelete); await reload(); }, 'Nade deleted.');
+    }),
+  );
   tool.querySelectorAll('[data-media-approve]').forEach((b) =>
     b.addEventListener('click', () => act(async () => { await api.admin.reviewMedia(b.dataset.mediaApprove, 'approved'); await reload(); }, 'Media approved.')),
   );
   tool.querySelectorAll('[data-media-reject]').forEach((b) =>
     b.addEventListener('click', () => act(async () => { await api.admin.reviewMedia(b.dataset.mediaReject, 'rejected'); await reload(); }, 'Media rejected.')),
   );
+  tool.querySelectorAll('[data-media-delete]').forEach((b) =>
+    b.addEventListener('click', () => {
+      if (!confirm('Permanently remove this media?')) return;
+      act(async () => { await api.admin.removeMedia(b.dataset.mediaDelete); await reload(); }, 'Media removed.');
+    }),
+  );
+
+  const adminSelectAll = tool.querySelector('#admin-nade-select-all');
+  const adminBulkApprove = tool.querySelector('#admin-nade-bulk-approve');
+  const adminBulkReject = tool.querySelector('#admin-nade-bulk-reject');
+  const syncAdminBulk = () => {
+    const n = tool.querySelectorAll('.admin-nade-check:checked').length;
+    if (adminBulkApprove) adminBulkApprove.disabled = n === 0;
+    if (adminBulkReject) adminBulkReject.disabled = n === 0;
+  };
+  adminSelectAll?.addEventListener('change', () => {
+    tool.querySelectorAll('.admin-nade-check').forEach((c) => {
+      c.checked = adminSelectAll.checked;
+    });
+    syncAdminBulk();
+  });
+  tool.querySelectorAll('.admin-nade-check').forEach((c) => c.addEventListener('change', syncAdminBulk));
+  const bulkNades = async (decision) => {
+    const ids = [...tool.querySelectorAll('.admin-nade-check:checked')].map((c) => Number(c.value));
+    if (!ids.length) return;
+    await act(async () => {
+      const result = await api.admin.reviewNadesBulk(ids, decision);
+      await reload();
+      setStatus(`${decision === 'approved' ? 'Approved' : 'Rejected'} ${result.updated} nade${result.updated === 1 ? '' : 's'}.`, 'ok');
+    });
+  };
+  adminBulkApprove?.addEventListener('click', () => bulkNades('approved'));
+  adminBulkReject?.addEventListener('click', () => bulkNades('rejected'));
 
   // Comments
   tool.querySelectorAll('[data-comment-approve]').forEach((b) =>
@@ -355,6 +512,12 @@ function wire() {
   );
   tool.querySelectorAll('[data-comment-reject]').forEach((b) =>
     b.addEventListener('click', () => act(async () => { await api.admin.reviewComment(b.dataset.commentReject, 'rejected'); await reload(); }, 'Comment rejected.')),
+  );
+  tool.querySelectorAll('[data-comment-delete]').forEach((b) =>
+    b.addEventListener('click', () => {
+      if (!confirm('Permanently delete this comment?')) return;
+      act(async () => { await api.admin.removeComment(b.dataset.commentDelete); await reload(); }, 'Comment deleted.');
+    }),
   );
 
   // Reports
@@ -366,8 +529,15 @@ function wire() {
   );
 
   // Users
-  tool.querySelectorAll('[data-role]').forEach((sel) =>
-    sel.addEventListener('change', () => act(async () => { await api.admin.setRole(sel.dataset.role, sel.value); await reload(); }, 'Role updated.')),
+  tool.querySelectorAll('[data-role-set]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const role = b.dataset.role;
+      const label = role === 'admin' ? 'Promoted to admin.' : 'Admin access removed.';
+      act(async () => {
+        await api.admin.setRole(b.dataset.roleSet, role);
+        await reload();
+      }, label);
+    }),
   );
   tool.querySelectorAll('[data-unban]').forEach((b) =>
     b.addEventListener('click', () => act(async () => { await api.admin.unbanUser(b.dataset.unban); await reload(); }, 'User unbanned.')),
@@ -395,7 +565,10 @@ function wire() {
     act(async () => { const r = await api.admin.checkCommandsCs2(); setStatus(`CS2 build: ${r.build || 'unknown'}${r.changed ? ' (changed → re-synced)' : ''}.`, 'ok'); }),
   );
   tool.querySelector('#sync-pros')?.addEventListener('click', () =>
-    act(async () => { const r = await api.admin.syncPros(); setStatus(r.synced ? `Synced ${r.count} pros from ${r.source}.` : `Sync failed: ${r.reason}.`, r.synced ? 'ok' : 'error'); }),
+    act(async () => {
+      const r = await api.admin.syncPros();
+      setStatus(r.synced ? `Synced ${r.count} pros from ${r.source}.` : `Sync failed: ${r.reason}.`, r.synced ? 'ok' : 'error');
+    }),
   );
   tool.querySelector('#import-commands')?.addEventListener('click', () =>
     openImportModal({
@@ -416,6 +589,14 @@ function wire() {
     }),
   );
 
+  // Contact
+  tool.querySelectorAll('[data-contact-delete]').forEach((b) =>
+    b.addEventListener('click', () => {
+      if (!confirm('Delete this contact message?')) return;
+      act(async () => { await api.admin.removeContact(b.dataset.contactDelete); await reload(); }, 'Message deleted.');
+    }),
+  );
+
   // Settings
   tool.querySelector('#save-settings')?.addEventListener('click', () =>
     act(async () => {
@@ -424,6 +605,21 @@ function wire() {
       cache.settings = await api.admin.saveSettings({ paypalUrl, steamTradeUrl });
       document.dispatchEvent(new CustomEvent('aimkit:settings-updated'));
     }, 'Donate links saved.'),
+  );
+
+  // Owner logs
+  tool.querySelector('#owner-logs-filter')?.addEventListener('change', (e) => {
+    cache.logsFilter = e.target.value || '';
+    act(async () => {
+      await loadSection('logs');
+      render();
+    });
+  });
+  tool.querySelector('#owner-logs-refresh')?.addEventListener('click', () =>
+    act(async () => {
+      await loadSection('logs');
+      render();
+    }, 'Logs refreshed.'),
   );
 }
 

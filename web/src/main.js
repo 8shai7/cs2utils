@@ -28,7 +28,7 @@ import { initHeaderAuth, openReset } from './headerAuth.js';
 import { openContactModal } from './contactModal.js';
 import { api, adoptToken } from './api.js';
 import { refresh as refreshSession, verifyEmail } from './session.js';
-import { renderCrosshairPreview } from './preview.js';
+import { renderCrosshairPreview, crosshairPixelMetrics } from './preview.js';
 import { initMagnifier } from './magnifier.js';
 import {
   GAMES,
@@ -111,14 +111,10 @@ app.innerHTML = `
         <section class="panel preview-panel">
           <div class="panel-head">
             <h2>Preview</h2>
-            <span class="panel-tag" id="preview-mode-tag">Actual in-game size</span>
+            <span class="panel-tag">Actual in-game size</span>
           </div>
           <div class="preview-stage">
             <canvas id="preview-canvas" width="280" height="280" aria-label="Crosshair preview"></canvas>
-          </div>
-          <div class="preview-modes" role="group" aria-label="Preview size">
-            <button type="button" class="pmode active" data-pmode="ingame" aria-selected="true">In-game</button>
-            <button type="button" class="pmode" data-pmode="fullscreen" aria-selected="false">Full screen</button>
           </div>
           <div class="preview-controls">
             <button type="button" id="magnifier-toggle" class="btn btn-sm ghost" aria-pressed="false" title="Turn on, then hover the preview to zoom in on tiny details">
@@ -188,6 +184,14 @@ app.innerHTML = `
           </div>
 
           <div class="tab-panel" data-panel="visual">
+            <label class="field">
+              <span>Share code</span>
+              <input id="ed-sharecode" type="text" spellcheck="false" placeholder="CSGO-UseJt-3oTvn-47wPX-hEyER-WZfiK" autocomplete="off" />
+            </label>
+            <div class="actions">
+              <button class="btn primary" type="button" id="ed-apply-code">Load code</button>
+            </div>
+
             <div class="editor-grid">
               <label class="field">
                 <span>Style</span>
@@ -267,19 +271,16 @@ app.innerHTML = `
             </div>
 
             <label class="field">
-              <span>Generated share code</span>
-              <input id="ed-sharecode" type="text" readonly spellcheck="false" />
-            </label>
-            <label class="field">
               <span>Console commands</span>
-              <textarea id="ed-commands" rows="10" readonly spellcheck="false"></textarea>
+              <textarea id="ed-commands" rows="10" spellcheck="false" placeholder="cl_crosshairstyle 4;&#10;cl_crosshairsize 3;&#10;..."></textarea>
             </label>
             <div class="actions">
-              <button class="btn" id="ed-copy-code">Copy code</button>
-              <button class="btn" id="ed-copy-commands">Copy commands</button>
-              <button class="btn ghost" id="ed-reset">Reset</button>
+              <button class="btn primary" type="button" id="ed-apply-commands">Apply commands</button>
+              <button class="btn" type="button" id="ed-copy-code">Copy code</button>
+              <button class="btn" type="button" id="ed-copy-commands">Copy commands</button>
+              <button class="btn ghost" type="button" id="ed-reset">Reset</button>
             </div>
-            <p class="hint">Drag the sliders to design your crosshair — the preview, share code, and commands update live.</p>
+            <p class="hint">Paste a share code or edit commands, then tweak with the sliders — preview updates live.</p>
           </div>
 
           <div id="crosshair-status" class="status" role="status" aria-live="polite"></div>
@@ -382,23 +383,25 @@ app.innerHTML = `
             <span class="sens-unit" id="psa-result-label">recommended sensitivity</span>
           </div>
           <dl id="psa-stats" class="preview-stats sens-stats"></dl>
-          <p class="sens-note">A 7-round binary search: test both values in your usual practice routine, pick the side that feels more controllable, and repeat until it converges on your ideal sensitivity.</p>
+          <p class="sens-note">A 7-round binary search starting from your <strong>pad 360°</strong> sensitivity — the in-game sens where moving across your whole playable mousepad area does exactly one full turn. Narrow it until it feels right.</p>
         </section>
 
         <section class="panel converter-panel">
           <details class="psa-instructions" open>
             <summary>How the PSA method works</summary>
             <ol class="psa-steps-list">
-              <li>Enter your current in-game sensitivity below and press <strong>Start PSA</strong>.</li>
-              <li>You'll get two options — a <strong>lower</strong> and a <strong>higher</strong> sensitivity. Set each one in-game and test it with the same routine (e.g. <code>aim_botz</code>, a deathmatch, or retakes).</li>
-              <li>Pick the side that felt <strong>more controllable</strong> — better first-shot accuracy and target tracking.</li>
+              <li>
+                Find your <strong>pad 360° sensitivity</strong>: in-game, adjust <code>sensitivity</code> until moving your mouse from one edge of your playable pad area to the other turns you exactly <strong>360°</strong>. Enter that value below and press <strong>Start PSA</strong>.
+              </li>
+              <li>Each round gives a <strong>lower</strong> and <strong>higher</strong> sensitivity. Set each one in-game and test with the same routine (e.g. <code>aim_botz</code>, deathmatch, or retakes).</li>
+              <li>Pick the side that felt <strong>more controllable</strong> — better first-shot accuracy and tracking.</li>
               <li>The range narrows around your choice. Repeat for all <strong>7 rounds</strong>.</li>
-              <li>After the final round you get your <strong>recommended sensitivity</strong>. Apply it via <em>Settings → Mouse</em> or the console: <code>sensitivity &lt;value&gt;</code>.</li>
+              <li>After the final round you get your <strong>recommended sensitivity</strong>. Apply it via <em>Settings → Mouse</em> or <code>sensitivity &lt;value&gt;</code>.</li>
             </ol>
-            <p class="hint">Tips: give each value equal test time, keep your DPI &amp; resolution the same throughout, and use the same map/routine every round for a fair comparison.</p>
+            <p class="hint">Tips: give each value equal test time, keep DPI &amp; resolution the same, and use the same map/routine every round. Your pad 360° is only the starting base — PSA will move away from it toward what feels best.</p>
           </details>
           <label class="field">
-            <span>Starting in-game sensitivity</span>
+            <span>Pad 360° sensitivity (full pad swipe = one turn)</span>
             <input id="psa-start" type="number" min="0" step="0.01" inputmode="decimal" value="1.00" />
           </label>
           <div class="actions">
@@ -465,25 +468,13 @@ const previewStats = document.querySelector('#preview-stats');
 const previewResSelect = /** @type {HTMLSelectElement} */ (document.querySelector('#preview-res'));
 const previewResScale = document.querySelector('#preview-res-scale');
 
-// Preview size mode:
-//  - 'ingame'     (default) draws the crosshair at its real in-game pixel size,
-//                 shown 1:1 in the box — how it actually looks while playing.
-//  - 'fullscreen' shows it as a true fraction of the whole monitor (tiny) using
-//                 a high-res backing that's downscaled — use the Magnifier.
-let previewMode = 'ingame';
+// Fixed 280×280 backing — 1 canvas pixel = 1 on-screen pixel for the selected res.
+canvas.width = 280;
+canvas.height = 280;
+canvas.style.imageRendering = 'pixelated';
 
-function applyPreviewBacking() {
-  const px = previewMode === 'fullscreen' ? 1080 : 280;
-  if (canvas.width !== px) {
-    canvas.width = px;
-    canvas.height = px;
-  }
-  canvas.style.imageRendering = previewMode === 'fullscreen' ? 'auto' : 'pixelated';
-}
-applyPreviewBacking();
-
-// Common CS2 resolutions. The crosshair scales with vertical resolution, so the
-// pixel scale is height / 1080 (1080p ≈ 1 unit per pixel).
+// Common CS2 resolutions. Crosshair geometry uses CS2's Source HUD formula
+// (YRES against 480p), so vertical resolution changes the drawn pixel size.
 const PREVIEW_RESOLUTIONS = [
   { id: '1920x1080', h: 1080, label: '1920 × 1080 (16:9)' },
   { id: '2560x1440', h: 1440, label: '2560 × 1440 (16:9)' },
@@ -497,14 +488,9 @@ const PREVIEW_RESOLUTIONS = [
 
 let lastPreviewCrosshair = null;
 
-// Canvas pixels per crosshair unit.
-//  - 'ingame': res.h/1080 — real in-game pixel size shown 1:1 in the 280px box.
-//  - 'fullscreen': canvas.height/1080 — the box represents the whole screen, so
-//    the crosshair is a true fraction of it (resolution-independent).
-function previewScale() {
-  if (previewMode === 'fullscreen') return canvas.height / 1080;
+function previewResHeight() {
   const res = PREVIEW_RESOLUTIONS.find((r) => r.id === previewResSelect?.value) || PREVIEW_RESOLUTIONS[0];
-  return res.h / 1080;
+  return res.h;
 }
 
 const magnifier = initMagnifier({
@@ -516,36 +502,19 @@ const magnifier = initMagnifier({
 
 function drawPreview(crosshair) {
   lastPreviewCrosshair = crosshair;
-  renderCrosshairPreview(canvas, crosshair, previewScale());
+  const resHeight = previewResHeight();
+  renderCrosshairPreview(canvas, crosshair, { resHeight });
   if (previewResScale) {
     if (crosshair) {
-      // Show the crosshair's real on-screen size for the selected resolution.
       const res = PREVIEW_RESOLUTIONS.find((r) => r.id === previewResSelect?.value) || PREVIEW_RESOLUTIONS[0];
-      const f = res.h / 1080;
-      const arms = Math.max(0, Math.round(crosshair.length * f));
-      const thick = Math.max(1, Math.round(crosshair.thickness * f));
-      previewResScale.textContent = `≈ ${arms}px arms · ${thick}px thick @ ${res.h}p`;
+      const stats = crosshairPixelMetrics(crosshair, res.h);
+      previewResScale.textContent = `≈ ${stats.length}px arms · ${stats.thickness}px thick @ ${res.h}p`;
     } else {
       previewResScale.textContent = '';
     }
   }
   magnifier.refresh();
 }
-
-function setPreviewMode(mode) {
-  previewMode = mode === 'fullscreen' ? 'fullscreen' : 'ingame';
-  applyPreviewBacking();
-  document.querySelectorAll('.pmode').forEach((b) => {
-    const active = b.dataset.pmode === previewMode;
-    b.classList.toggle('active', active);
-    b.setAttribute('aria-selected', String(active));
-  });
-  const tag = document.querySelector('#preview-mode-tag');
-  if (tag) tag.textContent = previewMode === 'fullscreen' ? 'Relative to full screen' : 'Actual in-game size';
-  drawPreview(lastPreviewCrosshair);
-}
-
-document.querySelectorAll('.pmode').forEach((b) => b.addEventListener('click', () => setPreviewMode(b.dataset.pmode)));
 
 const crosshairStatus = document.querySelector('#crosshair-status');
 const sensitivityStatus = document.querySelector('#sensitivity-status');
@@ -783,7 +752,7 @@ const TOOL_DESCRIPTIONS = {
     'Convert a crosshair share code into console commands, build a code from commands, or design one visually with a live preview.',
   sensitivity:
     'Keep the same cm/360 aim feel across games — with custom yaw values and DPI changes handled for you.',
-  psa: 'Dial in your ideal sensitivity with a guided 7-round A/B test (Perfect Sensitivity Approximation).',
+  psa: 'Start from your pad 360° sens (full mousepad swipe = one turn), then narrow it with a guided 7-round A/B test.',
   nades:
     'Browse community grenade line-ups, or sign in to submit your own with a 2D throw guide, videos and photos.',
   commands:
@@ -1009,17 +978,62 @@ function renderEditorOutputs() {
   edAlphaNum.disabled = alphaOff;
 
   try {
-    edSharecode.value = encodeCrosshair(editor);
+    setControlValue(edSharecode, encodeCrosshair(editor));
   } catch {
-    edSharecode.value = '';
+    setControlValue(edSharecode, '');
   }
-  edCommands.value = formatCommands(crosshairToConVars(editor));
+  setControlValue(edCommands, formatCommands(crosshairToConVars(editor)));
 }
 
 /** Render the shared preview + the editor outputs. */
 function renderEditor() {
   updatePreview(editor);
   renderEditorOutputs();
+}
+
+/** Load a decoded/parsed crosshair into the visual editor. */
+function loadCrosshairIntoEditor(crosshair, okMessage) {
+  Object.assign(editor, DEFAULT_CROSSHAIR, crosshair);
+  applyStateToControls();
+  renderEditor();
+  if (okMessage) setStatus(crosshairStatus, okMessage, 'ok');
+}
+
+function applyEditorShareCode() {
+  const raw = edSharecode.value.trim();
+  if (!raw) {
+    setStatus(crosshairStatus, 'Paste a crosshair share code first.', 'error');
+    return;
+  }
+  const code = normalizeShareCode(raw);
+  if (!code) {
+    setStatus(crosshairStatus, 'Invalid format. Expected CSGO-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx', 'error');
+    return;
+  }
+  try {
+    const crosshair = decodeCrosshairShareCode(code);
+    loadCrosshairIntoEditor(crosshair, 'Loaded share code into the editor.');
+  } catch (err) {
+    if (err instanceof InvalidCrosshairShareCode || err instanceof InvalidShareCode) {
+      setStatus(crosshairStatus, 'That share code is not a valid crosshair code.', 'error');
+    } else {
+      setStatus(crosshairStatus, err instanceof Error ? err.message : 'Failed to decode share code.', 'error');
+    }
+  }
+}
+
+function applyEditorCommands() {
+  const text = edCommands.value.trim();
+  if (!text) {
+    setStatus(crosshairStatus, 'Paste crosshair console commands first.', 'error');
+    return;
+  }
+  try {
+    const crosshair = parseCommandsToCrosshair(text);
+    loadCrosshairIntoEditor(crosshair, 'Applied commands to the editor.');
+  } catch (err) {
+    setStatus(crosshairStatus, err instanceof Error ? err.message : 'Failed to parse commands.', 'error');
+  }
 }
 
 /** Style + checkboxes → editor state. */
@@ -1110,6 +1124,15 @@ RGB_FIELDS.forEach((f) => {
   f.num.addEventListener('change', onRgbNum);
 });
 
+document.querySelector('#ed-apply-code')?.addEventListener('click', applyEditorShareCode);
+document.querySelector('#ed-apply-commands')?.addEventListener('click', applyEditorCommands);
+edSharecode?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    applyEditorShareCode();
+  }
+});
+
 document.querySelector('#ed-copy-code')?.addEventListener('click', () => {
   copyText(crosshairStatus, edSharecode.value, 'share code');
 });
@@ -1144,6 +1167,7 @@ document.querySelector('#copy-sens')?.addEventListener('click', () => {
 document.querySelector('#sens-cs2-val')?.addEventListener('click', loadCs2ValorantExample);
 
 // --- PSA (Perfect Sensitivity Approximation) calculator ---
+// Base = pad 360° in-game sensitivity (full swipe across playable pad = one turn).
 const psaStart = /** @type {HTMLInputElement} */ (document.querySelector('#psa-start'));
 const psaBegin = document.querySelector('#psa-begin');
 const psaRound = document.querySelector('#psa-round');
@@ -1184,7 +1208,7 @@ function renderPsa() {
     <div><dt>Range low</dt><dd>${formatSens(psaState.lo, 3)}</dd></div>
     <div><dt>Range high</dt><dd>${formatSens(psaState.hi, 3)}</dd></div>
     <div><dt>Spread</dt><dd>± ${formatSens((psaSpread(psaState) / 2) * 100, 1)}%</dd></div>
-    <div><dt>Base</dt><dd>${formatSens(psaState.base, 3)}</dd></div>
+    <div><dt>Pad 360° base</dt><dd>${formatSens(psaState.base, 3)}</dd></div>
   `;
 
   if (done) {
@@ -1218,7 +1242,7 @@ function renderPsa() {
 function startPsa() {
   const base = Number(psaStart.value);
   if (!Number.isFinite(base) || base <= 0) {
-    setStatus(psaStatus, 'Enter a valid starting sensitivity greater than 0.', 'error');
+    setStatus(psaStatus, 'Enter a valid pad 360° sensitivity greater than 0.', 'error');
     return;
   }
   psaState = createPsaState(base);
@@ -1242,7 +1266,7 @@ psaUndoBtn?.addEventListener('click', () => {
 psaResetBtn?.addEventListener('click', () => {
   psaState = null;
   renderPsa();
-  setStatus(psaStatus, 'Enter a starting sensitivity and press Start PSA.', '');
+  setStatus(psaStatus, 'Enter your pad 360° sensitivity and press Start PSA.', '');
 });
 
 previewResSelect.innerHTML = PREVIEW_RESOLUTIONS.map(

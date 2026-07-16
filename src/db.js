@@ -11,9 +11,40 @@ export const pool = mysql.createPool({
   // Keep the pool small on serverless (many function instances share the DB's
   // max_connections); fail fast instead of hanging if the DB is unreachable.
   connectionLimit: Number(process.env.DB_POOL_LIMIT || (process.env.VERCEL ? 3 : 10)),
-  connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT_MS || 10000),
+  // Keep well under typical Vercel function limits (hobby ~10s) so a dead DB
+  // still returns our JSON error instead of a platform timeout.
+  connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT_MS || (process.env.VERCEL ? 6000 : 10000)),
   charset: 'utf8mb4_unicode_ci',
+  enableKeepAlive: true,
 });
+
+function isTransientDbError(err) {
+  const code = err?.code || '';
+  return (
+    code === 'ETIMEDOUT' ||
+    code === 'ECONNREFUSED' ||
+    code === 'ECONNRESET' ||
+    code === 'PROTOCOL_CONNECTION_LOST' ||
+    code === 'ER_CON_COUNT_ERROR' ||
+    code === 'TooManyConnections'
+  );
+}
+
+async function withDbRetry(fn, { attempts = 3, label = 'db' } = {}) {
+  let lastErr;
+  for (let i = 1; i <= attempts; i += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (!isTransientDbError(err) || i === attempts) throw err;
+      const waitMs = 400 * i;
+      console.warn(`[db] ${label} failed (${err.code || err.message}); retry ${i}/${attempts - 1} in ${waitMs}ms`);
+      await new Promise((r) => setTimeout(r, waitMs));
+    }
+  }
+  throw lastErr;
+}
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS users (
@@ -58,6 +89,18 @@ const SCHEMA = [
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_nade (nade_id),
     CONSTRAINT fk_media_nade FOREIGN KEY (nade_id) REFERENCES nades(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  `CREATE TABLE IF NOT EXISTS nade_favorites (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nade_id INT NOT NULL,
+    user_id INT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_nade_user (nade_id, user_id),
+    INDEX idx_fav_user (user_id),
+    INDEX idx_fav_nade (nade_id),
+    CONSTRAINT fk_fav_nade FOREIGN KEY (nade_id) REFERENCES nades(id) ON DELETE CASCADE,
+    CONSTRAINT fk_fav_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
   `CREATE TABLE IF NOT EXISTS command_recommendations (
@@ -207,6 +250,33 @@ const SCHEMA = [
     sort_order INT NOT NULL DEFAULT 0,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  `CREATE TABLE IF NOT EXISTS map_guide_imports (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    author_id INT NOT NULL,
+    map VARCHAR(40) NOT NULL,
+    file_name VARCHAR(160) NULL,
+    guide_text MEDIUMTEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_author (author_id),
+    CONSTRAINT fk_guide_import_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  // Owner-only audit trail of moderation / admin actions.
+  `CREATE TABLE IF NOT EXISTS owner_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    actor_id INT NULL,
+    actor_name VARCHAR(80) NOT NULL,
+    actor_role VARCHAR(16) NOT NULL DEFAULT 'admin',
+    action VARCHAR(64) NOT NULL,
+    entity_type VARCHAR(32) NULL,
+    entity_id INT NULL,
+    summary VARCHAR(500) NOT NULL DEFAULT '',
+    detail TEXT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_created (created_at),
+    INDEX idx_action (action)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 ];
 
 // Idempotent column migrations for tables that already exist.
@@ -229,22 +299,48 @@ const MIGRATIONS = [
   'ALTER TABLE users ADD INDEX IF NOT EXISTS idx_steam (steam_id)',
   'ALTER TABLE pro_settings ADD COLUMN IF NOT EXISTS photo VARCHAR(500) NULL',
   'ALTER TABLE pro_settings ADD COLUMN IF NOT EXISTS team_logo VARCHAR(500) NULL',
+  'ALTER TABLE nades ADD COLUMN IF NOT EXISTS guide_import_id INT NULL',
+  'ALTER TABLE nades ADD INDEX IF NOT EXISTS idx_guide_import (guide_import_id)',
+  'ALTER TABLE nades ADD COLUMN IF NOT EXISTS guide_node_id VARCHAR(64) NULL',
+  'ALTER TABLE nades ADD COLUMN IF NOT EXISTS start_wx FLOAT NULL',
+  'ALTER TABLE nades ADD COLUMN IF NOT EXISTS start_wy FLOAT NULL',
+  'ALTER TABLE nades ADD COLUMN IF NOT EXISTS start_wz FLOAT NULL',
+  'ALTER TABLE nades ADD COLUMN IF NOT EXISTS end_wx FLOAT NULL',
+  'ALTER TABLE nades ADD COLUMN IF NOT EXISTS end_wy FLOAT NULL',
+  'ALTER TABLE nades ADD COLUMN IF NOT EXISTS end_wz FLOAT NULL',
+  'ALTER TABLE nades ADD COLUMN IF NOT EXISTS aim_wx FLOAT NULL',
+  'ALTER TABLE nades ADD COLUMN IF NOT EXISTS aim_wy FLOAT NULL',
+  'ALTER TABLE nades ADD COLUMN IF NOT EXISTS aim_wz FLOAT NULL',
 ];
 
 export async function initDb() {
-  const conn = await pool.getConnection();
-  try {
-    for (const stmt of SCHEMA) {
-      await conn.query(stmt);
-    }
-    for (const stmt of MIGRATIONS) {
-      try {
-        await conn.query(stmt);
-      } catch (err) {
-        console.warn('[db] migration skipped:', err.message);
-      }
-    }
-  } finally {
-    conn.release();
+  // Misconfigured serverless: localhost is never reachable from Vercel.
+  if (process.env.VERCEL && /^(127\.0\.0\.1|localhost)$/i.test(String(config.db.host || ''))) {
+    const err = new Error(
+      `DB_HOST=${config.db.host} is not reachable from Vercel. Set DB_HOST to a public MySQL hostname (Hostinger Remote MySQL with allowed IPs, or a cloud DB).`,
+    );
+    err.code = 'ETIMEDOUT';
+    throw err;
   }
+  await withDbRetry(
+    async () => {
+      const conn = await pool.getConnection();
+      try {
+        for (const stmt of SCHEMA) {
+          await conn.query(stmt);
+        }
+        for (const stmt of MIGRATIONS) {
+          try {
+            await conn.query(stmt);
+          } catch (err) {
+            console.warn('[db] migration skipped:', err.message);
+          }
+        }
+      } finally {
+        conn.release();
+      }
+    },
+    // 2 attempts × ~6s stays under common 10s serverless limits.
+    { attempts: Number(process.env.DB_INIT_RETRIES || (process.env.VERCEL ? 2 : 3)), label: 'init' },
+  );
 }

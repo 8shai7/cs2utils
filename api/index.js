@@ -1,6 +1,6 @@
 // Vercel serverless entry: reuse the Express app, ensuring the DB is initialized
 // once per cold start before handling requests.
-import app, { ready } from '../src/index.js';
+import app, { getReady } from '../src/index.js';
 import { config } from '../src/config.js';
 
 // Mirror the Express `cors` config for responses we send WITHOUT going through
@@ -18,8 +18,24 @@ function setCors(req, res) {
       res.setHeader('Vary', 'Origin');
     }
   }
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-AimKit-Token, X-Access-Token');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+}
+
+function initFailureDetail(error) {
+  const code = error?.code || '';
+  const msg = error?.message || String(error);
+  if (code === 'ETIMEDOUT' || /ETIMEDOUT/i.test(msg)) {
+    return (
+      `Database connection timed out (DB_HOST=${config.db.host}). ` +
+      'On Vercel, DB_HOST cannot be localhost — use a publicly reachable MySQL host ' +
+      '(enable Hostinger Remote MySQL and allow all IPs, or use a cloud DB).'
+    );
+  }
+  if (code === 'ECONNREFUSED') {
+    return `Database connection refused (DB_HOST=${config.db.host}). Check that MySQL is running and DB_* env vars are set in the host.`;
+  }
+  return code || msg;
 }
 
 export default async function handler(req, res) {
@@ -31,7 +47,7 @@ export default async function handler(req, res) {
     return app(req, res);
   }
 
-  const status = await ready;
+  const status = await getReady();
   if (!status.ok) {
     setCors(req, res);
     res.statusCode = 500;
@@ -39,7 +55,7 @@ export default async function handler(req, res) {
     res.end(
       JSON.stringify({
         error: 'Backend failed to initialize.',
-        detail: status.error?.code || status.error?.message || String(status.error),
+        detail: initFailureDetail(status.error),
       }),
     );
     return;

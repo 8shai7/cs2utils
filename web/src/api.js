@@ -35,7 +35,11 @@ async function request(method, path, body, { auth = false } = {}) {
   if (body !== undefined && !(body instanceof FormData)) headers['Content-Type'] = 'application/json';
   if (auth) {
     const token = getToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
+    if (!token) throw new Error('Please log in first.');
+    // Send both standard Authorization and a custom fallback — some hosts have
+    // been observed to drop Authorization on certain routes/redirects.
+    headers.Authorization = `Bearer ${token}`;
+    headers['X-AimKit-Token'] = `Bearer ${token}`;
   }
   let res;
   try {
@@ -57,7 +61,11 @@ async function request(method, path, body, { auth = false } = {}) {
     }
   }
   if (!res.ok) {
-    const err = new Error((data && data.error) || `Request failed (${res.status}).`);
+    const base = (data && data.error) || `Request failed (${res.status}).`;
+    const detail = data && typeof data.detail === 'string' ? data.detail.trim() : '';
+    const message =
+      detail && detail !== base ? `${base} ${detail}` : base;
+    const err = new Error(message);
     err.status = res.status;
     err.data = data;
     throw err;
@@ -247,6 +255,20 @@ export const api = {
       const data = await request('GET', '/nades/mine', undefined, { auth: true });
       return data.nades;
     },
+    async favorites({ map = '', type = '' } = {}) {
+      const q = new URLSearchParams();
+      if (map) q.set('map', map);
+      if (type) q.set('type', type);
+      const qs = q.toString();
+      const data = await request('GET', `/nades/favorites${qs ? `?${qs}` : ''}`, undefined, { auth: true });
+      return data.nades;
+    },
+    async social() {
+      return request('GET', '/nades/social', undefined, { auth: !!getToken() });
+    },
+    async favorite(id) {
+      return request('POST', `/nades/${id}/favorite`, {}, { auth: true });
+    },
     async create(input) {
       const data = await request('POST', '/nades', input, { auth: true });
       return data.nade;
@@ -257,6 +279,21 @@ export const api = {
     },
     async remove(nadeId) {
       return request('DELETE', `/nades/${nadeId}`, undefined, { auth: true });
+    },
+    async parseMapGuide(text) {
+      return request('POST', '/nades/map-guide/parse', { text }, { auth: true });
+    },
+    async importMapGuide({ text, nades, side, guideText, fileName } = {}) {
+      return request('POST', '/nades/map-guide/import', { text, nades, side, guideText, fileName }, { auth: true });
+    },
+    async practicePackFromText({ text, map, importId } = {}) {
+      return request('POST', '/nades/map-guide/practice-pack', { text, map, importId }, { auth: true });
+    },
+    async practicePackFromImport(importId) {
+      return request('GET', `/nades/map-guide/imports/${importId}/practice-pack`, undefined, { auth: !!getToken() });
+    },
+    async practicePackFromNades(nadeIds) {
+      return request('POST', '/nades/map-guide/practice-pack-from-nades', { nadeIds }, { auth: !!getToken() });
     },
   },
   commands: {
@@ -288,6 +325,9 @@ export const api = {
     },
     async reviewComment(id, decision) {
       return request('POST', `/admin/comments/${id}/review`, { decision }, { auth: true });
+    },
+    async removeComment(id) {
+      return request('DELETE', `/admin/comments/${id}`, undefined, { auth: true });
     },
     async syncCommands() {
       return request('POST', '/admin/commands/sync', {}, { auth: true });
@@ -333,8 +373,17 @@ export const api = {
     async reviewNade(id, decision, note = '') {
       return request('POST', `/admin/nades/${id}/review`, { decision, note }, { auth: true });
     },
+    async reviewNadesBulk(ids, decision, note = '') {
+      return request('POST', '/admin/nades/review-bulk', { ids, decision, note }, { auth: true });
+    },
     async reviewMedia(mediaId, decision) {
       return request('POST', `/admin/media/${mediaId}/review`, { decision }, { auth: true });
+    },
+    async reviewMediaBulk(ids, decision) {
+      return request('POST', '/admin/media/review-bulk', { ids, decision }, { auth: true });
+    },
+    async removeMedia(mediaId) {
+      return request('DELETE', `/admin/media/${mediaId}`, undefined, { auth: true });
     },
     async users() {
       const data = await request('GET', '/admin/users', undefined, { auth: true });
@@ -347,6 +396,17 @@ export const api = {
     async contactMessages() {
       const data = await request('GET', '/admin/contact', undefined, { auth: true });
       return data.messages;
+    },
+    async removeContact(id) {
+      return request('DELETE', `/admin/contact/${id}`, undefined, { auth: true });
+    },
+    async ownerLogs({ limit = 100, offset = 0, action = '' } = {}) {
+      const q = new URLSearchParams();
+      if (limit) q.set('limit', String(limit));
+      if (offset) q.set('offset', String(offset));
+      if (action) q.set('action', action);
+      const qs = q.toString();
+      return request('GET', `/admin/owner-logs${qs ? `?${qs}` : ''}`, undefined, { auth: true });
     },
   },
   uploads: {

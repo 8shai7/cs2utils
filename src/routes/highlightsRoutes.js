@@ -12,6 +12,7 @@ function serialize(row) {
     id: row.id,
     authorId: row.author_id,
     authorName: row.author_name,
+    authorAvatar: row.author_avatar || null,
     title: row.title,
     description: row.description || '',
     url: row.url,
@@ -40,7 +41,7 @@ highlightsRoutes.get(
       params.push(like, like, like);
     }
     const [rows] = await pool.query(
-      `SELECT h.*, u.username AS author_name${req.user ? ', (hr.id IS NOT NULL) AS reported_by_me' : ''}
+      `SELECT h.*, u.username AS author_name, COALESCE(NULLIF(u.avatar_url, ''), u.steam_avatar) AS author_avatar${req.user ? ', (hr.id IS NOT NULL) AS reported_by_me' : ''}
        FROM highlights h
        JOIN users u ON u.id = h.author_id
        ${mineJoin}
@@ -70,7 +71,7 @@ highlightsRoutes.post(
       [req.user.id, title, description || null, url],
     );
     const [rows] = await pool.query(
-      'SELECT h.*, u.username AS author_name FROM highlights h JOIN users u ON u.id = h.author_id WHERE h.id = ?',
+      `SELECT h.*, u.username AS author_name, COALESCE(NULLIF(u.avatar_url, ''), u.steam_avatar) AS author_avatar FROM highlights h JOIN users u ON u.id = h.author_id WHERE h.id = ?`,
       [result.insertId],
     );
     res.status(201).json({ highlight: serialize(rows[0]) });
