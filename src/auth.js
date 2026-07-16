@@ -52,6 +52,7 @@ export function publicUser(row) {
     steamAvatar: row.steam_avatar || null,
     hasPassword: Boolean(row.password_hash),
     hasEmail: Boolean(row.email),
+    emailVerified: row.email_verified === undefined ? true : Boolean(row.email_verified),
   };
 }
 

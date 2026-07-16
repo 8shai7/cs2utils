@@ -166,6 +166,17 @@ const SCHEMA = [
     CONSTRAINT fk_reset_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
+  `CREATE TABLE IF NOT EXISTS email_verifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    token_hash VARCHAR(64) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    used TINYINT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_verify_token (token_hash),
+    CONSTRAINT fk_verify_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
   `CREATE TABLE IF NOT EXISTS contact_messages (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(120) NOT NULL,
@@ -202,6 +213,8 @@ const SCHEMA = [
 const MIGRATIONS = [
   'ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_until DATETIME NULL',
   'ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500) NULL',
+  // DEFAULT 1 grandfathers existing accounts as verified; new email signups set 0 explicitly.
+  'ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified TINYINT NOT NULL DEFAULT 1',
   // Steam accounts may have no email/password; allow NULLs.
   'ALTER TABLE users MODIFY email VARCHAR(255) NULL',
   'ALTER TABLE users MODIFY password_hash VARCHAR(255) NULL',

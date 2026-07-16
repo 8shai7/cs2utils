@@ -18,6 +18,17 @@ export const config = {
   apiUrl: process.env.API_URL || 'http://localhost:3001',
   ownerEmail: (process.env.OWNER_EMAIL || 'shaital121@gmail.com').trim().toLowerCase(),
   corsOrigin: process.env.CORS_ORIGIN || '*',
+  // Registration anti-abuse + email verification.
+  requireEmailVerification: String(process.env.REQUIRE_EMAIL_VERIFICATION || 'true').toLowerCase() !== 'false',
+  emailVerifyTtlHours: Number(process.env.EMAIL_VERIFY_TTL_HOURS || 24),
+  registerMaxPerHourPerIp: Number(process.env.REGISTER_MAX_PER_HOUR || 5),
+  // Extra disposable email domains to block (comma-separated), added to the built-in list.
+  disposableEmailDomains: (process.env.DISPOSABLE_EMAIL_DOMAINS || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean),
+  // Skip the DNS/MX deliverability check when set to false (e.g. offline dev).
+  checkEmailMx: String(process.env.CHECK_EMAIL_MX || 'true').toLowerCase() !== 'false',
   // On serverless (Vercel) only /tmp is writable, so default uploads there.
   uploadDir: process.env.UPLOAD_DIR || (process.env.VERCEL ? '/tmp/uploads' : 'uploads'),
   imgbbApiKey: process.env.IMGBB_API_KEY || '',

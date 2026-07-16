@@ -7,11 +7,43 @@ import { config } from '../config.js';
 import { hashPassword, verifyPassword, signToken, publicUser, requireAuth, normalizeEmail } from '../auth.js';
 import { asyncHandler, ApiError, EMAIL_RE } from '../util.js';
 import { uploadToImgbb } from '../imgbb.js';
-import { sendPasswordResetEmail } from '../mailer.js';
+import { sendPasswordResetEmail, sendVerificationEmail, smtpConfigured } from '../mailer.js';
 import { buildSteamLoginUrl, verifySteamAssertion, fetchSteamProfile } from '../steam.js';
 import { createCaptcha, verifyCaptcha } from '../captcha.js';
+import { validateRealEmail } from '../emailCheck.js';
+import { rateLimit, clientIp } from '../rateLimit.js';
 
 const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
+
+// Email verification is enforced only when SMTP is configured (so devs without a
+// mail server aren't locked out) and not explicitly disabled.
+function verificationActive() {
+  return config.requireEmailVerification && smtpConfigured();
+}
+
+async function createVerification(userId) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const expires = new Date(Date.now() + config.emailVerifyTtlHours * 3600 * 1000)
+    .toISOString()
+    .slice(0, 19)
+    .replace('T', ' ');
+  await pool.query('INSERT INTO email_verifications (user_id, token_hash, expires_at) VALUES (?, ?, ?)', [
+    userId,
+    sha256(token),
+    expires,
+  ]);
+  return token;
+}
+
+async function sendVerification(userId, email) {
+  const token = await createVerification(userId);
+  const link = `${config.appUrl}/?verify=${token}`;
+  try {
+    await sendVerificationEmail({ email, link });
+  } catch (err) {
+    console.error('[auth] verification email failed:', err.message);
+  }
+}
 
 // Require a CAPTCHA once an email has failed to log in this many times.
 const LOGIN_CAPTCHA_THRESHOLD = 2;
@@ -49,33 +81,98 @@ export const authRoutes = Router();
 authRoutes.post(
   '/register',
   asyncHandler(async (req, res) => {
-    let { email, username, password } = req.body || {};
+    let { email, username, password, captchaToken, captchaAnswer } = req.body || {};
     const rawEmail = (email || '').trim().toLowerCase();
     email = normalizeEmail(rawEmail);
     username = (username || '').trim();
 
+    // Anti-spam: a CAPTCHA is always required to register.
+    if (!verifyCaptcha(captchaToken, captchaAnswer)) {
+      return res.status(400).json({ error: 'Please complete the captcha to continue.', captchaRequired: true });
+    }
+
+    // Anti-spam: limit registrations per IP.
+    const ipLimit = rateLimit(`register:${clientIp(req)}`, config.registerMaxPerHourPerIp, 3600 * 1000);
+    if (!ipLimit.ok) {
+      return res
+        .status(429)
+        .json({ error: 'Too many sign-ups from your network. Please try again later.', captchaRequired: true });
+    }
+
     if (!EMAIL_RE.test(email)) throw new ApiError(400, 'Enter a valid email address.');
     if (username.length < 2) throw new ApiError(400, 'Username must be at least 2 characters.');
+    if (username.length > 80) throw new ApiError(400, 'Username is too long.');
     if ((password || '').length < 6) throw new ApiError(400, 'Password must be at least 6 characters.');
+
+    // Real-email check: reject disposable/temporary domains and non-deliverable domains.
+    const emailCheck = await validateRealEmail(email);
+    if (!emailCheck.ok) throw new ApiError(400, emailCheck.reason);
 
     const [existing] = await pool.query('SELECT email, username FROM users WHERE email = ? OR username = ?', [
       email,
       username,
     ]);
     if (existing.some((u) => u.email === email)) throw new ApiError(409, 'An account with that email already exists.');
-    if (existing.some((u) => u.username.toLowerCase() === username.toLowerCase())) {
+    if (existing.some((u) => (u.username || '').toLowerCase() === username.toLowerCase())) {
       throw new ApiError(409, 'That username is already taken.');
     }
 
     const role = email === OWNER_EMAIL ? 'owner' : 'user';
     const passwordHash = await hashPassword(password);
+    const needVerify = verificationActive() && email !== OWNER_EMAIL;
     const [result] = await pool.query(
-      'INSERT INTO users (email, username, password_hash, role) VALUES (?, ?, ?, ?)',
-      [email, username, passwordHash, role],
+      'INSERT INTO users (email, username, password_hash, role, email_verified) VALUES (?, ?, ?, ?, ?)',
+      [email, username, passwordHash, role, needVerify ? 0 : 1],
     );
+
+    if (needVerify) {
+      await sendVerification(result.insertId, email);
+      return res.status(201).json({
+        verifyRequired: true,
+        email,
+        message: 'Account created! Check your email for a verification link to activate your account.',
+      });
+    }
+
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [result.insertId]);
     const user = publicUser(rows[0]);
     res.status(201).json({ token: signToken(user), user });
+  }),
+);
+
+// Verify an email using the token from the verification link. Logs the user in.
+authRoutes.post(
+  '/verify',
+  asyncHandler(async (req, res) => {
+    const token = req.body?.token || '';
+    const [rows] = await pool.query(
+      'SELECT * FROM email_verifications WHERE token_hash = ? AND used = 0 AND expires_at > NOW()',
+      [sha256(token)],
+    );
+    if (!rows.length) throw new ApiError(400, 'This verification link is invalid or has expired.');
+    const record = rows[0];
+    await pool.query('UPDATE users SET email_verified = 1 WHERE id = ?', [record.user_id]);
+    await pool.query('UPDATE email_verifications SET used = 1 WHERE id = ?', [record.id]);
+    const [users] = await pool.query('SELECT * FROM users WHERE id = ?', [record.user_id]);
+    const user = publicUser(users[0]);
+    res.json({ token: signToken(user), user });
+  }),
+);
+
+// Resend a verification email (rate-limited, no account enumeration).
+authRoutes.post(
+  '/resend-verification',
+  asyncHandler(async (req, res) => {
+    const email = normalizeEmail(req.body?.email || '');
+    const ipLimit = rateLimit(`resend:${clientIp(req)}`, 5, 3600 * 1000);
+    const emailLimit = rateLimit(`resend-email:${email}`, 3, 3600 * 1000);
+    if (email && EMAIL_RE.test(email) && ipLimit.ok && emailLimit.ok && verificationActive()) {
+      const [rows] = await pool.query('SELECT id, email_verified FROM users WHERE email = ?', [email]);
+      if (rows.length && !rows[0].email_verified) {
+        await sendVerification(rows[0].id, email);
+      }
+    }
+    res.json({ ok: true, message: 'If that account exists and is unverified, a new link is on its way.' });
   }),
 );
 
@@ -110,6 +207,15 @@ authRoutes.post(
       return res
         .status(401)
         .json({ error: 'Incorrect password.', captchaRequired: failCount(email) >= LOGIN_CAPTCHA_THRESHOLD });
+    }
+
+    // Block sign-in until the email is verified (email accounts only).
+    if (verificationActive() && row.email && !row.email_verified && email !== OWNER_EMAIL) {
+      return res.status(403).json({
+        error: 'Please verify your email first. Check your inbox for the verification link.',
+        verifyRequired: true,
+        email,
+      });
     }
 
     clearFail(email);
@@ -157,7 +263,10 @@ authRoutes.post(
   '/forgot',
   asyncHandler(async (req, res) => {
     const email = normalizeEmail(req.body?.email || '');
-    if (EMAIL_RE.test(email)) {
+    // Anti email-bomb: cap reset emails per IP and per target address.
+    const ipLimit = rateLimit(`forgot:${clientIp(req)}`, 5, 3600 * 1000);
+    const emailLimit = rateLimit(`forgot-email:${email}`, 3, 3600 * 1000);
+    if (EMAIL_RE.test(email) && ipLimit.ok && emailLimit.ok) {
       const [rows] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
       if (rows.length) {
         const token = crypto.randomBytes(32).toString('hex');

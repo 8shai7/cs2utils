@@ -32,6 +32,15 @@ export async function sendPasswordResetEmail({ email, link }) {
   });
 }
 
+export async function sendVerificationEmail({ email, link }) {
+  return getTransport().sendMail({
+    from: config.mailFrom,
+    to: email,
+    subject: 'Verify your AimKit email',
+    text: `Welcome to AimKit! Please verify your email address to activate your account.\n\nVerify (valid for a limited time):\n${link}\n\nIf you didn't create an AimKit account, you can ignore this email.`,
+  });
+}
+
 export async function sendContactEmail({ name, email, subject, message }) {
   const info = await getTransport().sendMail({
     from: config.mailFrom,

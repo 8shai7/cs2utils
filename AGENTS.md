@@ -28,6 +28,7 @@ AimKit (domain: aimkit.net; formerly "CS2 Utils") is a **full-stack app**. **The
 - Auth is JWT-based (token stored in browser `localStorage` under `cs2utils.token`). Roles: `user`, `admin`, `owner`.
 - Whoever registers/logs in with `OWNER_EMAIL` (default `shaital121@gmail.com`, set in the root `.env`) is automatically granted the `owner` role (owner implies admin and cannot be demoted).
 - Nade submissions and user-added media are `pending` until an admin approves them; only approved content is public.
+- **Registration anti-spam + email verification:** register requires a CAPTCHA, is IP rate-limited, and rejects disposable/undeliverable emails (`src/emailCheck.js` — disposable list + MX/DNS check). Email verification (`email_verifications` table, `users.email_verified`) is enforced **only when SMTP is configured** (`verificationActive()` in `authRoutes.js`), so devs without a mail server aren't locked out; the owner email is exempt. The contact form + password-reset + resend endpoints are also CAPTCHA/rate-limited (`src/rateLimit.js`).
 
 ### Secrets
 
